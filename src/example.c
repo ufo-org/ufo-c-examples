@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "ufo_c/target/ufo_c.h"
 
 #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
@@ -12,9 +13,9 @@ typedef struct {
 
 static int32_t Obj_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target) {
     Obj *objects = (Obj *) target;
-    for (size_t i = start; i < end; i++) {
+    for (size_t i = 0; i < end - start; i++) {
         Obj object;
-        object.id = i;
+        object.id = start + i;
         objects[i] = object;
     }
     return 0;
@@ -49,10 +50,13 @@ void Obj_free(UfoCore *ufo_system, Obj *ptr) {
 
 int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
+    size_t size = HIGH_WATER_MARK * 2;
 
-    Obj *objects = Obj_new(&ufo_system, 100);
-    for (size_t i = 0; i < 100; i++) {
+    Obj *objects = Obj_new(&ufo_system, size);
+    for (size_t i = 0; i < size; i++) {
         printf("%li -> %li\n", i, objects[i].id);
+
+        objects[i].id = objects[i].id + 1;
     }
 
     Obj_free(&ufo_system, objects);

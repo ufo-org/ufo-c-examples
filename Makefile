@@ -22,26 +22,24 @@ LIBS = -Wl,--no-as-needed -lpthread -lrt -ldl -lm -lstdc++ $(UFO_C_LIB_PATH)/lib
 ifeq (${UFO_DEBUG}, 1)
 	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/
 else
-	CFLAGS = -DMAKE_SURE -O2       -fpic -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/
+	CFLAGS =             -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/
 endif
 
 # -----------------------------------------------------------------------------
 
-all: $(SHLIB) $(MAIN)
+.PHONY: all ufo-c ufo-c-clean clean
+
+all: libs $(MAIN)
 
 OBJECTS = $(SOURCES_C:.c=.o)
 
-OBJECTS_WITH_DEPS: ufo-c $(OBJECTS)
+libs: ufo-c $(OBJECTS)
 
-$(MAIN): $(OBJECTS_WITH_DEPS)
+$(MAIN): libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(MAIN) $(OBJECTS) $(LFLAGS) $(LIBS) 
-
-$(SHLIB): $(OBJECTS_WITH_DEPS)
 
 clean: ufo-c-clean
 	$(RM) src/*.o *~ $(MAIN)
-
-.PHONY: all ufo-c ufo-c-clean clean
 
 ufo-c:
 	cargo $(CARGOFLAGS) --manifest-path=$(UFO_C_PATH)/Cargo.toml

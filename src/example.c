@@ -32,7 +32,7 @@ Obj *Obj_new(UfoCore *ufo_system, size_t n) {
         /* populate function */ Obj_populate
     );
     if (ufo_is_error(&ufo_object)) {
-        printf("Cannot create UFO object"); // TODO
+        fprintf(stderr, "Cannot create UFO object"); // TODO
         return NULL;
     }
     return (Obj *) ufo_header_ptr(&ufo_object);
@@ -41,8 +41,8 @@ Obj *Obj_new(UfoCore *ufo_system, size_t n) {
 void Obj_free(UfoCore *ufo_system, Obj *ptr) {
     UfoObj ufo_object = ufo_get_by_address(ufo_system, ptr);
     if (ufo_is_error(&ufo_object)) {
-        printf("Cannot free %p: not a UFO object.", ptr); // TODO
-        return;        
+        fprintf(stderr, "Cannot free %p: not a UFO object.", ptr); // TODO
+        return;
     }
     ufo_free(ufo_object);
 }
@@ -50,7 +50,7 @@ void Obj_free(UfoCore *ufo_system, Obj *ptr) {
 int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
 
-    Obj *objects = Obj_new(&ufo_system, 100);    
+    Obj *objects = Obj_new(&ufo_system, 100);
     for (size_t i = 0; i < 100; i++) {
         printf("%li -> %li\n", i, objects[i].id);
     }

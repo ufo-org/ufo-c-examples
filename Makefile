@@ -27,16 +27,18 @@ endif
 
 # -----------------------------------------------------------------------------
 
-OBJECTS = $(SOURCES_C:.c=.o)
-
-$(MAIN): $(OBJECTS)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $(MAIN) $(OBJECTS) $(LFLAGS) $(LIBS) 
-
 all: $(SHLIB) $(MAIN)
 
-$(SHLIB): $(OBJECTS) ufo-c
+OBJECTS = $(SOURCES_C:.c=.o)
 
-clean: 
+OBJECTS_WITH_DEPS: ufo-c $(OBJECTS)
+
+$(MAIN): $(OBJECTS_WITH_DEPS)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $(MAIN) $(OBJECTS) $(LFLAGS) $(LIBS) 
+
+$(SHLIB): $(OBJECTS_WITH_DEPS)
+
+clean: ufo-c-clean
 	$(RM) src/*.o *~ $(MAIN)
 
 .PHONY: all ufo-c ufo-c-clean clean
@@ -46,3 +48,6 @@ ufo-c:
 
 ufo-c-clean:
 	cargo clean --manifest-path=$(UFO_C_PATH)/Cargo.toml
+
+# update-dependencies:
+# 	cd src/ufo_c && git pull	

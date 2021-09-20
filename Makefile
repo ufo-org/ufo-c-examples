@@ -1,8 +1,7 @@
 # You can set UFO_DEBUG=1 or UFO_DEBUG=0 in the environment to compile with or
 # without debug symbols (this affects both the C and the Rust code).
 
-MAIN = example
-SOURCES_C = src/example.c
+SOURCES_C = src/example.c src/postgres.c
 
 # -----------------------------------------------------------------------------
 
@@ -18,25 +17,30 @@ else
 	UFO_C_LIB_PATH="$(UFO_C_PATH)/target/release"
 endif
 
-LIBS = -Wl,--no-as-needed -lpthread -lrt -ldl -lm -lstdc++ $(UFO_C_LIB_PATH)/libufos_c.a
+LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lstdc++ $(UFO_C_LIB_PATH)/libufos_c.a 
 ifeq (${UFO_DEBUG}, 1)
-	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/
+	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
 else
-	CFLAGS =             -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/
+	CFLAGS =             -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
 endif
+
+# TODO split CFLAGS for different wotsits
 
 # -----------------------------------------------------------------------------
 
 .PHONY: all ufo-c ufo-c-clean clean
 
-all: libs $(MAIN)
+all: libs example postgres
 
 OBJECTS = $(SOURCES_C:.c=.o)
 
 libs: ufo-c $(OBJECTS)
 
-$(MAIN): libs
-	$(CC) $(CFLAGS) $(INCLUDES) -o $(MAIN) $(OBJECTS) $(LFLAGS) $(LIBS) 
+example: libs
+	$(CC) $(CFLAGS) $(INCLUDES) -o example src/example.o $(LFLAGS) $(LIBS) 
+
+postgres: libs
+	$(CC) $(CFLAGS) $(INCLUDES) -o postgres src/postgres.o $(LFLAGS) $(LIBS) 
 
 clean: ufo-c-clean
 	$(RM) src/*.o *~ $(MAIN)

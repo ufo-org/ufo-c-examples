@@ -11,10 +11,10 @@ UFO_C_PATH=src/ufo_c
 # subdirectory or a release subdirectory. We remember which.
 ifeq (${UFO_DEBUG}, 1)
 	CARGOFLAGS=+nightly build
-	UFO_C_LIB_PATH="$(UFO_C_PATH)/target/debug"
+	UFO_C_LIB_PATH=$(UFO_C_PATH)/target/debug
 else
 	CARGOFLAGS=+nightly build --release
-	UFO_C_LIB_PATH="$(UFO_C_PATH)/target/release"
+	UFO_C_LIB_PATH=$(UFO_C_PATH)/target/release
 endif
 
 LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lbz2 -lstdc++ $(UFO_C_LIB_PATH)/libufos_c.a 

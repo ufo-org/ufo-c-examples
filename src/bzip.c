@@ -240,7 +240,44 @@ int main(int argc, char *argv[]) {
 
 
     //BlockBoundaries *boundaries = 
-    discover_boundaries("/home/ckerr/workspace/ufo/ufo-c-examples/test/test.txt.bz2");
+    discover_boundaries("/home/kondziu/Workspace/ufo-c-examples/test/test.txt.bz2");
+
+    bz_stream *stream = (bz_stream *) malloc(sizeof(bz_stream));
+    stream->bzalloc = NULL;
+    stream->bzfree = NULL;
+    stream->opaque = NULL;
+
+    int result = BZ2_bzDecompressInit(stream, /*verbosity*/ 0, /*small*/ 0);
+
+    printf("result = %i\n", result);
+    printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
+    printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
+
+    BZ2_bzDecompress(stream);
+
+    printf("result = %i\n", result);
+    printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
+    printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
+
+
+    // https://github.com/waigx/elinks/blob/2fc9b0bf5a2e5a1f7a5c7f4ee210e3feedd6db58/src/encoding/bzip2.c
+//     typedef 
+//    struct {
+//       char *next_in;
+//       unsigned int avail_in;
+//       unsigned int total_in;
+
+//       char *next_out;
+//       unsigned int avail_out;
+//       unsigned int total_out;
+
+//       void *state;
+
+//       void *(*bzalloc)(void *,int,int);
+//       void (*bzfree)(void *,void *);
+//       void *opaque;
+//    } 
+//    bz_stream;
 
     // FILE*   f;
     // BZFILE* b;

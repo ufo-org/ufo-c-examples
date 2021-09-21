@@ -67,6 +67,9 @@ BitStream *BitStream_new(const char *input_file_path) {
 
 // Returns 0 or 1, or <0 to indicate EOF or error
 int BitStream_read_bit(BitStream *input_stream) {
+    // always score a hit
+    input_stream->read_bits++;
+
     // If there is a bit in the buffer, return that.
     if (input_stream->buffLive > 0) {
         input_stream->buffLive--;
@@ -78,9 +81,9 @@ int BitStream_read_bit(BitStream *input_stream) {
 
     // Detect error
     if (byte == EOF && errno != 0) {
-        perror("wtf");
         fprintf(stderr, "ERROR: cannot read file at %s\n", 
                 input_stream->path);         
+        perror("wtf1");
         return -2;
     }
 
@@ -93,7 +96,6 @@ int BitStream_read_bit(BitStream *input_stream) {
     // into the buffer.
     input_stream->buffLive = 7;
     input_stream->buffer = byte;
-    input_stream->read_bits++;
     return (((input_stream->buffer) >> 7) & 0x1);
 }
 
@@ -128,7 +130,7 @@ BlockBoundaries *discover_boundaries(const char *input_file_path) {
         return NULL;
     }
 
-    printf("wtf\n");
+    printf("wtf2\n");
 
     // Initialize the counters.
     BlockBoundaries *boundaries = (BlockBoundaries *) malloc(sizeof(BlockBoundaries));
@@ -143,8 +145,8 @@ BlockBoundaries *discover_boundaries(const char *input_file_path) {
 
     // Shifting buffer consisting of two parts: senior (most significant) and
     // junior (least significant).
-    uint64_t senior_buffer = 0;
-    uint64_t junior_buffer = 0;
+    uint32_t senior_buffer = 0;
+    uint32_t junior_buffer = 0;
     
     while (true) {
         int bit = BitStream_read_bit(input_stream);
@@ -238,7 +240,7 @@ int main(int argc, char *argv[]) {
 
 
     //BlockBoundaries *boundaries = 
-    discover_boundaries("test/test.txt.bz2");
+    discover_boundaries("/home/ckerr/workspace/ufo/ufo-c-examples/test/test.txt.bz2");
 
     // FILE*   f;
     // BZFILE* b;

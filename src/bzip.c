@@ -38,13 +38,6 @@ BitStream *BitStream_new(const char *input_file_path) {
     // progName[BZ_MAX_FILENAME-1]='\0';
     // inFileName[0] = outFileName[0] = 0;
 
-    // Open the input bzip2 file.
-    FILE* input_file = fopen(input_file_path, "rb");
-    if (input_file == NULL) {
-        fprintf(stderr, "ERROR: cannot read file at %s\n", input_file_path);  
-        return NULL;
-    }
-
     // Open bit stream for reading.
     BitStream *input_stream = (BitStream *) malloc(sizeof(BitStream));
     if (input_stream == NULL) {
@@ -52,12 +45,20 @@ BitStream *BitStream_new(const char *input_file_path) {
         return NULL;
     }
 
-    input_stream->handle = input_file;
+    input_stream->path = input_file_path; // FIXME 0-terminate
     input_stream->buffer = 0;
     input_stream->buffLive = 0;
     input_stream->mode = 'r';
-    input_stream->path = input_file_path; // FIXME 0-terminate
     input_stream->read_bits = 0;
+
+    // Open the input bzip2 file.
+    FILE* input_file = fopen(input_stream->path, "rb");
+    if (input_file == NULL) {
+        fprintf(stderr, "ERROR: cannot read file at %s\n", input_file_path);  
+        return NULL;
+    }
+
+    input_stream->handle = input_file;    
 
     printf("xxx %p --- %p\n", input_stream, input_file);
 

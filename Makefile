@@ -1,7 +1,7 @@
 # You can set UFO_DEBUG=1 or UFO_DEBUG=0 in the environment to compile with or
 # without debug symbols (this affects both the C and the Rust code).
 
-SOURCES_C = src/example.c src/postgres.c
+SOURCES_C = src/example.c src/postgres.c src/bzip.c
 
 # -----------------------------------------------------------------------------
 
@@ -17,7 +17,7 @@ else
 	UFO_C_LIB_PATH="$(UFO_C_PATH)/target/release"
 endif
 
-LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lstdc++ $(UFO_C_LIB_PATH)/libufos_c.a 
+LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lbz2 -lstdc++ $(UFO_C_LIB_PATH)/libufos_c.a 
 ifeq (${UFO_DEBUG}, 1)
 	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
 else
@@ -30,7 +30,7 @@ endif
 
 .PHONY: all ufo-c ufo-c-clean clean
 
-all: libs example postgres
+all: libs example postgres bzip
 
 OBJECTS = $(SOURCES_C:.c=.o)
 
@@ -41,6 +41,9 @@ example: libs
 
 postgres: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o postgres src/postgres.o $(LFLAGS) $(LIBS) 
+
+bzip: libs
+	$(CC) $(CFLAGS) $(INCLUDES) -o bzip src/bzip.o $(LFLAGS) $(LIBS) 
 
 clean: ufo-c-clean
 	$(RM) src/*.o *~ $(MAIN)

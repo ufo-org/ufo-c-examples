@@ -60,8 +60,6 @@ BitStream *BitStream_new(const char *input_file_path) {
 
     input_stream->handle = input_file;    
 
-    printf("xxx %p --- %p\n", input_stream, input_file);
-
     return input_stream;
 }
 
@@ -109,6 +107,8 @@ void BitStream_free(BitStream *input_stream) {
 }
 
 typedef struct {
+    const char *path;
+
     size_t blocks;
     uint64_t block_start_index[MAX_BLOCKS]; // TODO make into a vector that can expand.
     uint64_t block_end_index[MAX_BLOCKS];
@@ -130,12 +130,13 @@ Blocks *Blocks_parse(const char *input_file_path) {
     }
 
     // Initialize the counters.
-    Blocks *boundaries = (Blocks *) malloc(sizeof(Blocks));
+    Blocks *boundaries = (Blocks *) malloc(sizeof(Blocks));    
     if (NULL == boundaries) {
         fprintf(stderr, "ERROR: cannot allocate a struct for recording block boundaries\n");  
         return NULL;
     }
 
+    boundaries->path = input_file_path;
     boundaries->blocks = 0;
     boundaries->read_blocks = 0;
     boundaries->bad_blocks = 0;
@@ -229,35 +230,170 @@ Blocks *Blocks_parse(const char *input_file_path) {
     }
 
     // Clean up and exit
-    BitStream_free(input_stream);
+    BitStream_free(input_stream);        
     return boundaries;
 }
 
-void Blocks_read_block(Blocks *boundaries, size_t i) {
+bz_stream *bz_stream_new() {
     bz_stream *stream = (bz_stream *) malloc(sizeof(bz_stream));
+    if (stream == NULL) {
+        return NULL;
+    }
+
+    stream->next_in = NULL;
+    stream->avail_in = 0;
+    stream->total_in_lo32 = 0;
+    stream->total_in_hi32 = 0;
+
+    stream->next_out = NULL;
+    stream->avail_out = 0;
+    stream->total_out_lo32 = 0;
+    stream->total_out_hi32 = 0;
+
+    stream->state = NULL; 
+
     stream->bzalloc = NULL;
     stream->bzfree = NULL;
     stream->opaque = NULL;
 
+    return stream;
+}
+
+bz_stream *bz_stream_init() {
+    bz_stream *stream = bz_stream_new();
+    if (stream == NULL) {
+        fprintf(stderr, "ERROR: cannot allocate a bzip2 stream\n");  
+        return NULL;
+    }
+
     int result = BZ2_bzDecompressInit(stream, /*verbosity*/ 0, /*small*/ 0);
+    if (result != BZ_OK) {        
+        fprintf(stderr, "ERROR: cannot initialize a bzip2 stream\n");  
+        free(stream);
+        return NULL;
+    }
 
-    printf("result = %i\n", result);
+    // struct bz2_enc_data *data = mem_alloc(sizeof(*data));
+    // if (data == NULL) {
+    //     fprintf(stderr, "ERROR: cannot initialize a bzip2 data object\n"); 
+        
+    //     return -3;
+    // }
+    return stream;
+}
+
+static bool myfeof ( FILE* f )
+{
+   int c = fgetc ( f );
+   if (c == EOF) return true;
+   ungetc ( c, f );
+   return false;
+}
+
+int Blocks_read_block(Blocks *boundaries, size_t i) {
+
+    bz_stream *stream = bz_stream_init();
+    if (stream == NULL) {
+        fprintf(stderr, "ERROR: cannot initialize stream\n");  
+        return -1;
+    }  
+
     printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
     printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
 
-    BZ2_bzDecompress(stream);
+    // BZ2_bzDecompress(stream);
 
-    printf("result = %i\n", result);
-    printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
-    printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
+    // printf("result = %i\n", result);
+    // printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
+    // printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
 
+    size_t output_buffer_size = 9000;
+    size_t input_buffer_size = 100;
+    char output_buffer[output_buffer_size];    
+    char input_buffer[input_buffer_size];
+
+    size_t input_buffer_occupancy = 0;
+
+    // Set array contents to zero, just in case.
+    memset(output_buffer, 0, output_buffer_size);
+    memset(input_buffer, 0, input_buffer_size);
+
+    // Tell BZip2 where to write decompressed data.
+	stream->avail_out = output_buffer_size;
+	stream->next_out = output_buffer;
+
+
+    fprintf(stderr, "DEUBG: Reading file %s\n", boundaries->path);
+    // Open file for reading
+    FILE *input_file = fopen(boundaries->path, "rb");
+    if (input_file == NULL) {
+        fprintf(stderr, "ERROR: cannot open file at %s\n", boundaries->path);
+        return -1;
+    }
+
+    // TODO loop starts here
+
+    for (int i = 0; true; i++) {
+
+        if (ferror(input_file)) {
+            fprintf(stderr, "ERROR: file read error\n");
+            return -6;
+        }
+
+        // If nothing in buffer, read some compressed data into it from the file.
+        if (stream->avail_in == 0 && !myfeof(input_file))  {
+            int read_characters = fread(input_buffer, sizeof(char), input_buffer_size, input_file);
+            if (ferror(input_file)) { 
+                fprintf(stderr, "ERROR: cannot read from file at %s\n", boundaries->path);
+                return -2; 
+            };        
+
+            // Point the bzip decompressor at the newly read data.
+            stream->avail_in = read_characters;
+            stream->next_in = input_buffer;
+            input_buffer_occupancy = read_characters;
+
+            fprintf(stderr, "DEBUG: read %li bytes from file: %s\n", input_buffer_occupancy, stream->next_in);
+        }
+
+        int result = BZ2_bzDecompress(stream);
+
+        if (result != BZ_OK && result != BZ_STREAM_END) { 
+            fprintf(stderr, "ERROR: cannot process stream, error no.: %i\n", result);
+            return -3;
+        };
+
+        if (result == BZ_OK 
+            && myfeof(input_file) 
+            && stream->avail_in == 0 
+            && stream->avail_out > 0) {
+
+            fprintf(stderr, "ERROR: cannot process stream, unexpected end of file\n");
+            return -4; 
+        };
+
+        if (result == BZ_STREAM_END) {        
+            fprintf(stderr, "WARNING: stream ended before end of file\n");
+            printf("%i read: %i -> %s\n", i, result, output_buffer);
+            return output_buffer_size - stream->avail_out; 
+        };
+
+        if (stream->avail_out == 0) {   
+            fprintf(stderr, "DEBUG: stream ended: no data read\n");  
+            printf("%i read: %i -> %s\n", i, result, output_buffer);
+            return output_buffer_size; 
+        };
+
+        printf("%i read: %i -> %s\n", i, result, output_buffer);
+
+    }
+
+    return 0; // unreachable
 }
 
 int main(int argc, char *argv[]) {
-    Blocks *blocks = Blocks_parse("test/test.txt.bz2");
+    Blocks *blocks = Blocks_parse("test/test2.txt.bz2");
     Blocks_read_block(blocks, 0);
-
-
 
     // https://github.com/waigx/elinks/blob/2fc9b0bf5a2e5a1f7a5c7f4ee210e3feedd6db58/src/encoding/bzip2.c
 //     typedef 

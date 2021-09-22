@@ -38,7 +38,7 @@ BitStream *BitStream_new(const char *input_file_path) {
     // progName[BZ_MAX_FILENAME-1]='\0';
     // inFileName[0] = outFileName[0] = 0;
 
-    // Open bit stream for reading.
+    // Open bit stream for reading
     BitStream *input_stream = (BitStream *) malloc(sizeof(BitStream));
     if (input_stream == NULL) {
         fprintf(stderr, "ERROR: cannot allocate BitStream object\n");  
@@ -51,7 +51,7 @@ BitStream *BitStream_new(const char *input_file_path) {
     input_stream->mode = 'r';
     input_stream->read_bits = 0;
 
-    // Open the input bzip2 file.
+    // Open the input bzip2 file
     FILE* input_file = fopen(input_stream->path, "rb");
     if (input_file == NULL) {
         fprintf(stderr, "ERROR: cannot read file at %s\n", input_file_path);  
@@ -76,19 +76,20 @@ int BitStream_read_bit(BitStream *input_stream) {
         return (((input_stream->buffer) >> (input_stream->buffLive)) & 0x1);
     }
 
-    // Read a byte from the input file.
+    // Read a byte from the input file
     int byte = getc(input_stream->handle);
 
-    // Detect error
-    if (byte == EOF && errno != 0) {
-        fprintf(stderr, "ERROR: cannot read file at %s\n", 
-                input_stream->path);         
-        perror("wtf1");
-        return -2;
-    }
-
-    // Detect end of file
+    // Detect end of file or error
     if (byte == EOF) {
+        // Detect error
+        if (ferror(input_stream->handle)) {
+            perror("ERROR");
+            fprintf(stderr, "ERROR: cannot read bit from file at %s\n", 
+                    input_stream->path);         
+            return -2;
+        }
+
+        // Detect end of file
         return -1;
     }
 
@@ -117,23 +118,19 @@ typedef struct {
     uint64_t read_block_end_index[MAX_BLOCKS];
     
     size_t bad_blocks;
-} BlockBoundaries;
+} Blocks;
 
-BlockBoundaries *discover_boundaries(const char *input_file_path) {
+Blocks *Blocks_parse(const char *input_file_path) {
 
     // Open file for reading.
     BitStream *input_stream = BitStream_new(input_file_path);
-    printf("xxx %p %i \n", input_stream, input_stream == NULL);
-
     if (input_stream == NULL) {
         fprintf(stderr, "ERROR: cannot open file %s\n", input_file_path);  
         return NULL;
     }
 
-    printf("wtf2\n");
-
     // Initialize the counters.
-    BlockBoundaries *boundaries = (BlockBoundaries *) malloc(sizeof(BlockBoundaries));
+    Blocks *boundaries = (Blocks *) malloc(sizeof(Blocks));
     if (NULL == boundaries) {
         fprintf(stderr, "ERROR: cannot allocate a struct for recording block boundaries\n");  
         return NULL;
@@ -161,7 +158,7 @@ BlockBoundaries *discover_boundaries(const char *input_file_path) {
                 (input_stream->read_bits - boundaries->block_start_index[boundaries->blocks]) >= 40) {
                 boundaries->block_end_index[boundaries->blocks] = input_stream->read_bits - 1;
                 if (boundaries->blocks > 0) {
-                    fprintf(stderr, "ERROR: block %lu could not be read (offset %lu to %lu)\n",
+                    fprintf(stderr, "DEBUG: block %li runs from %li to %li (incomplete)\n",
                             boundaries->blocks, 
                             boundaries->block_start_index[boundaries->blocks], 
                             boundaries->block_end_index[boundaries->blocks]);
@@ -236,12 +233,7 @@ BlockBoundaries *discover_boundaries(const char *input_file_path) {
     return boundaries;
 }
 
-int main(int argc, char *argv[]) {
-
-
-    //BlockBoundaries *boundaries = 
-    discover_boundaries("/home/kondziu/Workspace/ufo-c-examples/test/test.txt.bz2");
-
+void Blocks_read_block(Blocks *boundaries, size_t i) {
     bz_stream *stream = (bz_stream *) malloc(sizeof(bz_stream));
     stream->bzalloc = NULL;
     stream->bzfree = NULL;
@@ -258,6 +250,13 @@ int main(int argc, char *argv[]) {
     printf("result = %i\n", result);
     printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
     printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
+
+}
+
+int main(int argc, char *argv[]) {
+    Blocks *blocks = Blocks_parse("test/test.txt.bz2");
+    Blocks_read_block(blocks, 0);
+
 
 
     // https://github.com/waigx/elinks/blob/2fc9b0bf5a2e5a1f7a5c7f4ee210e3feedd6db58/src/encoding/bzip2.c

@@ -97,7 +97,7 @@ int BitBuffer_append_bit(BitBuffer* buffer, unsigned char bit) {
             bit, buffer->current_byte, buffer->current_bit);
 
     for (size_t i = 0; i < buffer->max_bytes; i++) {
-        printf("%2x ", buffer->data[i]);
+        printf("%02x ", buffer->data[i]);
         if ((i + 1) % 80 == 0) {
             printf("\n");
         }
@@ -122,9 +122,9 @@ int BitBuffer_append_bit(BitBuffer* buffer, unsigned char bit) {
 
 int BitBuffer_append_byte(BitBuffer* buffer, unsigned char byte) {
     for (unsigned char i = 0; i < 8; i++) {
-        unsigned char mask = 1 << (7 - i);
+        unsigned char mask = 1 << (8 - 1 - i);
         unsigned char bit = (byte & mask) > 0 ? 1 : 0;
-        printf("byte=%2x i=%i mask=%02x ?=%02x bit=%i\n", byte, i, mask, (byte & mask), bit);
+        printf("byte=%02x i=%i mask=%02x ?=%02x bit=%i\n", byte, i, mask, (byte & mask), bit);
         int result = BitBuffer_append_bit(buffer, bit);
         if (result < 0) {
             return result;
@@ -133,17 +133,18 @@ int BitBuffer_append_byte(BitBuffer* buffer, unsigned char byte) {
     return 0;
 }
 
-// int BitBuffer_append_uint32(BitBuffer* buffer, uint32_t value) {
-//     for (unsigned char i = 0; i < 32; i++) {
-//         unsigned char mask = 1 << i;
-//         unsigned char bit = (value & mask) > 0 ? 1 : 0;
-//         int result = BitBuffer_append_bit(buffer, bit);
-//         if (result < 0) {
-//             return result;
-//         }    
-//     }
-//     return 0;
-// }
+int BitBuffer_append_uint32(BitBuffer* buffer, uint32_t value) {
+    for (unsigned char i = 0; i < 32; i++) {
+        uint32_t mask = 1 << (32 - 1 - i);
+        uint32_t bit = (value & mask) > 0 ? 1 : 0;
+        printf("value=%08x i=%i mask=%08x ?=%08x bit=%i\n", value, i, mask, (value & mask), bit);
+        int result = BitBuffer_append_bit(buffer, bit);
+        if (result < 0) {
+            return result;
+        }    
+    }
+    return 0;
+}
 
 typedef struct {
     FILE*         handle;
@@ -234,6 +235,16 @@ int FileBitStream_read_byte(FileBitStream *input_stream) {
         }
     }
     return ShiftRegister_junior_byte(&input_stream->shift_register);
+}
+
+uint32_t FileBitStream_read_uint32(FileBitStream *input_stream) {
+    for (int bit = 0; bit < 32; bit++) {
+        int result = FileBitStream_read_bit(input_stream);
+        if (result < 0) {
+            return result;
+        }
+    }
+    return input_stream->shift_register.junior;
 }
 
 int FileBitStream_seek_bit(FileBitStream *input_stream, uint64_t bit_offset) {
@@ -569,7 +580,7 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     //  - Version        8b   0x68              h 
     //  - Level          8b   0x31-0x39         1-9
     // BlockHeader    =105b
-    //  - BlockMagic    48b   0x314159265359    π 
+    //  - BlockMagic    48b   0x314159265359    π
     //  - BlockCRC      32b                     CRC-32 checksum of uncompressed data
     //  - Randomized     1b   0                 zero (depracated)         
     //  - OrigPtr       24b                     original pointer (BWT stage, internal)
@@ -604,28 +615,6 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     unsigned char *buffer = (unsigned char *) calloc(buffer_size_in_bytes, sizeof(unsigned char));
     memset(buffer, 0, buffer_size_in_bytes);
 
-    // size_t position_in_buffer = 0;
-
-    // // Write out file magic
-    // memcpy(buffer + position_in_buffer, stream_magic, stream_magic_size); 
-    // // TODO rewrite last element of stream magic to whatever is read from the file to indicate correct size
-    // // TODO maybe i should just read the magic from the file?
-    // // TODO for now assuming 9
-    // buffer[3] += 9;
-    // position_in_buffer += stream_magic_size;
-
-    // // Write out the unchanging bytes of the header of the block
-    // memcpy(buffer + position_in_buffer, block_magic, block_magic_size);
-    // position_in_buffer += block_magic_size;    
-
-    // for (size_t i = 0; i < buffer_size_in_bytes; i++) {
-    //     printf("%2x ", buffer[i]);
-    //     if ((i + 1) % 80 == 0) {
-    //         printf("\n");
-    //     }
-    // }
-    // printf("\n");
-
     // Open file for reading the remainder
     FileBitStream *input_stream = FileBitStream_new(boundaries->path);
     if (input_stream == NULL) {
@@ -657,10 +646,21 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     }
     fprintf(stderr, "\n");
 
-    // FIXME seek is broken: fgetc gets a whole byte, not a single bit.
+    // Seek to the block boundary
     int seek_result = FileBitStream_seek_bit(input_stream, block_start_offset_in_bits);
     if (seek_result < 0) {
         fprintf(stderr, "ERROR: cannot seek to %lib offset\n", block_start_offset_in_bits);
+        return NULL;
+    }
+
+    // Read 32-bit CRC, which is just behind the boundary
+    uint32_t block_crc = FileBitStream_read_uint32(input_stream);
+    fprintf(stderr, "DEBUG: Block CRC %08x\n", block_crc);
+    if (block_crc < 0) {
+        fprintf(stderr, "ERROR: cannot read uint32 from bit stream\n");
+        FileBitStream_free(input_stream);
+        // TODO free what needs freeing
+        return NULL;
     }
 
     // This is how much we can read byte-by-byte before getting into trouble at
@@ -676,9 +676,9 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     // Read until the last byte-aligned datum of the block
     while (input_stream->read_bits < block_end_byte_aligned_offset_in_bits) {
         int byte = FileBitStream_read_byte(input_stream);
-        printf("%4li %4li %2x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
+        printf("%4li %4li %02x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
         if (byte < 0) {
-            printf("%li %li %2x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
+            printf("%li %li %02x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
             fprintf(stderr, "ERROR: cannot read byte from bit stream\n");
             FileBitStream_free(input_stream);
             // TODO free what needs freeing
@@ -690,8 +690,7 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     printf("%li %li \n", input_stream->read_bits, block_end_offset_in_bits);
 
     // Ok, now we write the rest into a buffer to align it.
-    BitBuffer bit_buffer = BitBuffer_new(80); // TODO size
-    //BitBuffer_append_bit(&bit_buffer, 1);
+    BitBuffer bit_buffer = BitBuffer_new(1 + footer_magic_size + 4); // TODO size
     for (int annoying_unaligned_bit = 0; 
          annoying_unaligned_bit <= remaining_byte_unaligned_bits; // sus
          annoying_unaligned_bit++) {
@@ -725,9 +724,32 @@ Block *Block_from(Blocks *boundaries, size_t index) {
         }
     }
 
-    //1 + footer_magic_size
-    //size_t bits_read = position_in_buffer;
+    // Write out the block CRC value as the stream CRC value, since it's just
+    // one block.
+    fprintf(stderr, "DEBUG: Write out stream CRC value to %04x\n", block_crc);
+    int result = BitBuffer_append_uint32(&bit_buffer, block_crc);
+    if (result < 0) {
+        fprintf(stderr, "ERROR: cannot write CRC byte to bit buffer\n");
+        return NULL;
+    }
 
+    // Write the bit buffer into the actual buffer.
+    for (int i = 0; i < bit_buffer.max_bytes; i++) {
+        buffer[read_bytes + i] = bit_buffer.data[i];
+    }
+    read_bytes += bit_buffer.max_bytes;
+
+    // The whole enchilada
+    fprintf(stderr, "DEBUG: Constructed buffer for this block\n");
+    for (size_t i = 0; i < read_bytes; i++) {
+        printf("%02x ", buffer[i]);
+        if ((i + 1) % 80 == 0) {
+            printf("\n");
+        }
+    }
+    printf("\n");
+
+    // TODO: free what needs freeing
     return NULL;
 }
  

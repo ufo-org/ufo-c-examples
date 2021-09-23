@@ -24,13 +24,38 @@
 #define SENIOR_BLOCK_ENDMARK 0x00001772UL
 #define JUNIOR_BLOCK_ENDMARK 0x45385090UL
 
+// Static elements of headers
+const int stream_magic_size = 4;
+const int block_magic_size = 6;
+const int footer_magic_size = 6;
+const unsigned char stream_magic[] = { 0x42, 0x5a, 0x68, 0x30 };
+const unsigned char block_magic[]  = { 0x31, 0x41, 0x59, 0x26, 0x53, 0x59 };
+const unsigned char footer_magic[] = { 0x17, 0x72, 0x45, 0x38, 0x50, 0x90 };
+
 typedef struct {
-    FILE*       handle;
-    uint32_t    buffer;
-    uint32_t    buffLive; // TODO rename
-    char        mode;     // TODO remove
-    const char *path;
-    uint64_t    read_bits;
+    uint32_t senior;
+    uint32_t junior;
+} ShiftRegister;
+
+const ShiftRegister block_header_template  = { 0x00003141UL, 0x59265359UL };
+const ShiftRegister block_endmark_template = { 0x00001772UL, 0x45385090UL };
+
+void ShiftRegister_append(ShiftRegister *shift_register, int bit) {
+    shift_register->senior = (shift_register->senior << 1) | (shift_register->junior >> 31);
+    shift_register->junior = (shift_register->junior << 1) | (bit & 1);  
+}
+
+bool ShiftRegister_equal_with_senior_mask(const ShiftRegister *a, const ShiftRegister *b, uint32_t senior_mask) {
+    return (a->junior == b->junior) && ((a->senior & senior_mask) == (b->senior & senior_mask));
+}
+
+typedef struct {
+    FILE*         handle;
+    uint32_t      buffer;
+    uint32_t      buffer_live;
+    const char   *path;
+    uint64_t      read_bits;    
+    ShiftRegister shift_register;
 } BitStream;
 
 BitStream *BitStream_new(const char *input_file_path) {
@@ -47,9 +72,11 @@ BitStream *BitStream_new(const char *input_file_path) {
 
     input_stream->path = input_file_path; // FIXME 0-terminate
     input_stream->buffer = 0;
-    input_stream->buffLive = 0;
-    input_stream->mode = 'r';
+    input_stream->buffer_live = 0;
     input_stream->read_bits = 0;
+
+    input_stream->shift_register.senior = 0;
+    input_stream->shift_register.junior = 0;
 
     // Open the input bzip2 file
     FILE* input_file = fopen(input_stream->path, "rb");
@@ -58,8 +85,7 @@ BitStream *BitStream_new(const char *input_file_path) {
         return NULL;
     }
 
-    input_stream->handle = input_file;    
-
+    input_stream->handle = input_file;   
     return input_stream;
 }
 
@@ -68,10 +94,13 @@ int BitStream_read_bit(BitStream *input_stream) {
     // always score a hit
     input_stream->read_bits++;
 
-    // If there is a bit in the buffer, return that.
-    if (input_stream->buffLive > 0) {
-        input_stream->buffLive--;
-        return (((input_stream->buffer) >> (input_stream->buffLive)) & 0x1);
+    // If there is a bit in the buffer, return that. Append the hot bit into the
+    // shift register buffer.
+    if (input_stream->buffer_live > 0) {
+        input_stream->buffer_live--;
+        int bit = (((input_stream->buffer) >> (input_stream->buffer_live)) & 0x1);
+        ShiftRegister_append(&input_stream->shift_register, bit);
+        return bit;
     }
 
     // Read a byte from the input file
@@ -92,10 +121,12 @@ int BitStream_read_bit(BitStream *input_stream) {
     }
 
     // Take the first bit form the read byte and return that. Stick the rest
-    // into the buffer.
-    input_stream->buffLive = 7;
+    // into the buffer. Append the hot bit into the shift register buffer.
+    input_stream->buffer_live = 7;
     input_stream->buffer = byte;
-    return (((input_stream->buffer) >> 7) & 0x1);
+    int bit = (((input_stream->buffer) >> 7) & 0x1);
+    ShiftRegister_append(&input_stream->shift_register, bit);
+    return bit;
 }
 
 void BitStream_free(BitStream *input_stream) {   
@@ -143,8 +174,7 @@ Blocks *Blocks_parse(const char *input_file_path) {
 
     // Shifting buffer consisting of two parts: senior (most significant) and
     // junior (least significant).
-    uint32_t senior_buffer = 0;
-    uint32_t junior_buffer = 0;
+    //ShiftRegister shift_register = {0, 0};
     
     while (true) {
         int bit = BitStream_read_bit(input_stream);
@@ -176,15 +206,18 @@ Blocks *Blocks_parse(const char *input_file_path) {
         }
 
         // Drop bit into shift register-like buffer
-        senior_buffer = (senior_buffer << 1) | (junior_buffer >> 31);
-        junior_buffer = (junior_buffer << 1) | (bit & 1);     
+        // senior_buffer = (senior_buffer << 1) | (junior_buffer >> 31);
+        // junior_buffer = (junior_buffer << 1) | (bit & 1); 
+        //ShiftRegister_append(&shift_register, bit);
 
         //printf("%lx %lx == %lx %lx\n", senior_buffer, junior_buffer, SENIOR_BLOCK_HEADER, JUNIOR_BLOCK_HEADER);   
         //printf("%lx %lx == %lx %lx\n\n", senior_buffer, junior_buffer, SENIOR_BLOCK_ENDMARK, JUNIOR_BLOCK_ENDMARK);
 
         // Detect block header or block end mark
-        if (((senior_buffer & 0x0000ffff) == SENIOR_BLOCK_HEADER && junior_buffer == JUNIOR_BLOCK_HEADER) ||
-            ((senior_buffer & 0x0000ffff) == SENIOR_BLOCK_ENDMARK && junior_buffer == JUNIOR_BLOCK_ENDMARK)) {
+        if (ShiftRegister_equal_with_senior_mask(&input_stream->shift_register, &block_header_template, 0x0000ffff)
+            || ShiftRegister_equal_with_senior_mask(&input_stream->shift_register, &block_endmark_template, 0x0000ffff)) {
+        // if (((shift_register.senior & 0x0000ffff) == SENIOR_BLOCK_HEADER && shift_register.junior == JUNIOR_BLOCK_HEADER) ||
+        //     ((shift_register.senior & 0x0000ffff) == SENIOR_BLOCK_ENDMARK && shift_register.junior == JUNIOR_BLOCK_ENDMARK)) {
 
             // If we found a bounary, the end of the preceding block is 49 bytes
             // ago (or zero if it's the first block)
@@ -282,48 +315,207 @@ bz_stream *bz_stream_init() {
     return stream;
 }
 
-static bool myfeof ( FILE* f )
-{
-   int c = fgetc ( f );
-   if (c == EOF) return true;
-   ungetc ( c, f );
-   return false;
+bool FILE_has_more(FILE* file) {
+    int character = fgetc(file);
+
+    if (character == EOF) {
+        return false;
+    }
+
+    ungetc(character, file);
+    return true;   
 }
 
-int Blocks_read_block(Blocks *boundaries, size_t i) {
+int FILE_seek_bits(FILE *file, uint64_t bits, int whence) {
+    // Maff
+    uint64_t bytes = bits / 8;
+    int remainder = bits % 8;
+
+    fprintf(stderr, "DEBUG: Seeking %lib or %liB + %ib\n", bits, bytes, remainder);
+
+    // Move to byte offset
+    int seek_result = fseek(file, bytes, whence);
+    if (seek_result < 1) {
+        return seek_result;
+    }
+
+    // Move to bit offset
+    for (int extra_bit = 0; extra_bit < remainder; extra_bit++) {
+        int character = fgetc(file);
+        if (character == EOF) {
+            return ferror(file) ? -1 : 0;
+        }        
+    }    
+    return 0;
+}
+
+int bz_stream_read_from_file(bz_stream *stream, FILE* input_file,
+                             size_t input_buffer_size, char *input_buffer) {
+    
+    int read_characters = fread(input_buffer, sizeof(char), input_buffer_size, input_file);
+    if (ferror(input_file)) { 
+        fprintf(stderr, "ERROR: cannot read from file\n");
+        return -1; 
+    };        
+
+    // Point the bzip decompressor at the newly read data.
+    stream->avail_in = read_characters;
+    stream->next_in = input_buffer;
+
+    fprintf(stderr, "DEBUG: read %i bytes from file: %s\n", read_characters, stream->next_in);
+    return read_characters;  
+}
+
+typedef struct {
+
+} Block;
+
+Block *Block_from(Blocks *boundaries, size_t index) {
+
+    if (boundaries->read_blocks <= index) {
+        fprintf(stderr, "ERROR: no block at index %li\n", index);
+        return NULL;
+    }
+
+    // Retrieve the offsets, for convenience
+    uint64_t block_start_offset_in_bits = boundaries->read_block_start_index[index];
+    uint64_t block_end_offset_in_bits = boundaries->read_block_end_index[index];
+    uint64_t payload_size_in_bits = block_end_offset_in_bits - block_start_offset_in_bits + 1;
+
+    fprintf(stderr, "DEBUG: "
+        "Reading block %li from file %s between offsets %li and %li (%lib)\n",
+        index, boundaries->path, block_end_offset_in_bits, 
+        block_start_offset_in_bits, payload_size_in_bits);
+
+    // StreamHeader    =32b
+    //  - HeaderMagic   16b   0x425a            B Z
+    //  - Version        8b   0x68              h 
+    //  - Level          8b   0x31-0x39         1-9
+    // BlockHeader    =105b
+    //  - BlockMagic    48b   0x314159265359    π 
+    //  - BlockCRC      32b                     CRC-32 checksum of uncompressed data
+    //  - Randomized     1b   0                 zero (depracated)         
+    //  - OrigPtr       24b                     original pointer (BWT stage, internal)
+    // StreamFooter    =80b + 0-7b
+    //  - FooterMagic   48b   0x177245385090    sqrt π 
+    //  - StreamCRC     32b   
+    //  - Padding       0-7b    
+
+    // Calculate size of buffer through the power of arithmetic
+    uint64_t buffer_size_in_bits = 
+        /* stream header size */ 32 +
+        /* block header size  */ 105 +
+        /* contents size      */ payload_size_in_bits +
+        /* stream footer size */ 80;
+
+    // Account for alignment at the end of stream footer, add 0-7
+    uint8_t padding = (8 - (buffer_size_in_bits % 8)) % 8;
+    buffer_size_in_bits += padding;
+
+    // Calculate bytes, for convenience
+    uint64_t buffer_size_in_bytes = buffer_size_in_bits / 8;
+
+
+    fprintf(stderr, "DEBUG: "
+            "Preparing buffer of size %lib = %ib + %ib + %lib + %ib + %ib\n",
+            buffer_size_in_bits, 32, 105, payload_size_in_bits, 80, padding);
+
+    // Alloc the buffre for the chunk
+    unsigned char *buffer = (unsigned char *) calloc(buffer_size_in_bytes, sizeof(unsigned char));
+    memset(buffer, 0, buffer_size_in_bytes);
+    // size_t position_in_buffer = 0;
+
+    // // Write out file magic
+    // memcpy(buffer + position_in_buffer, stream_magic, stream_magic_size); 
+    // // TODO rewrite last element of stream magic to whatever is read from the file to indicate correct size
+    // // TODO maybe i should just read the magic from the file?
+    // // TODO for now assuming 9
+    // buffer[3] += 9;
+    // position_in_buffer += stream_magic_size;
+
+    // // Write out the unchanging bytes of the header of the block
+    // memcpy(buffer + position_in_buffer, block_magic, block_magic_size);
+    // position_in_buffer += block_magic_size;    
+
+    // for (size_t i = 0; i < buffer_size_in_bytes; i++) {
+    //     printf("%2x ", buffer[i]);
+    //     if ((i + 1) % 80 == 0) {
+    //         printf("\n");
+    //     }
+    // }
+    // printf("\n");
+
+    // Open file for reading the remainder
+    fprintf(stderr, "DEBUG: Reading file %s\n", boundaries->path);
+    FILE *input_file = fopen(boundaries->path, "rb");
+    if (input_file == NULL) {
+        fprintf(stderr, "ERROR: cannot open file at %s\n", boundaries->path);
+        return NULL;
+    }
+    size_t position_in_file = 0;
+
+    // Assume the first boundary is at a byte boundary, otherwise something is very wrong
+    // assert(boundaries->read_block_start_index[0] % 8 == 0); // FIXME
+
+    // Read in everything before the first block boundary
+    // FIXME This has to be done on the bit stream
+    for (; position_in_file < boundaries->read_block_start_index[0] / 8; position_in_file++) {
+        buffer[position_in_file] = fgetc(input_file);
+    }
+
+    printf("DEBUG: Header (%lib/%liB) ", boundaries->read_block_start_index[0], position_in_file);
+    for (size_t i = 0; i < position_in_file; i++) {
+        printf("%2x ", buffer[i]);
+        if ((i + 1) % 80 == 0) {
+            printf("\n");
+        }
+    }
+    printf("\n");
+
+    // FIXME seek is broken: fgetc gets a whole byte, not a single bit.
+    int seek_result = FILE_seek_bits(input_file, block_start_offset_in_bits, SEEK_SET);
+    if (seek_result < 0) {
+        fprintf(stderr, "ERROR: cannot seek to %lib offset\n", block_start_offset_in_bits);
+    }    
+
+    //size_t bits_read = position_in_buffer;
+
+
+    return NULL;
+}
+ 
+ 
+ int Blocks_read_block(Blocks *boundaries, size_t i) {
+
+    if (boundaries->read_blocks == 0) {
+        fprintf(stderr, "ERROR: no blocks found to extract data from\n");
+        return -7;
+    }
 
     bz_stream *stream = bz_stream_init();
     if (stream == NULL) {
         fprintf(stderr, "ERROR: cannot initialize stream\n");  
-        return -1;
+        return -8;
     }  
 
-    printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
-    printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
-
-    // BZ2_bzDecompress(stream);
-
-    // printf("result = %i\n", result);
-    // printf("stream->next_in  = avail: %i, total: %i %i\n", stream->avail_in, stream->total_in_lo32, stream->total_in_hi32);
-    // printf("stream->next_out = avail: %i, total: %i %i\n", stream->avail_out, stream->total_out_lo32, stream->total_out_hi32);
-
     size_t output_buffer_size = 9000;
-    size_t input_buffer_size = 100;
+    size_t input_buffer_size = 2898839 - 1627422;
+    size_t header_buffer_size = 10; // bytes
+
     char output_buffer[output_buffer_size];    
     char input_buffer[input_buffer_size];
-
-    size_t input_buffer_occupancy = 0;
+    char header_buffer[output_buffer_size];        
 
     // Set array contents to zero, just in case.
     memset(output_buffer, 0, output_buffer_size);
     memset(input_buffer, 0, input_buffer_size);
+    memset(header_buffer, 0, header_buffer_size);
 
     // Tell BZip2 where to write decompressed data.
 	stream->avail_out = output_buffer_size;
 	stream->next_out = output_buffer;
 
-
-    fprintf(stderr, "DEUBG: Reading file %s\n", boundaries->path);
+    fprintf(stderr, "DEBUG: Reading file %s\n", boundaries->path);
     // Open file for reading
     FILE *input_file = fopen(boundaries->path, "rb");
     if (input_file == NULL) {
@@ -331,9 +523,30 @@ int Blocks_read_block(Blocks *boundaries, size_t i) {
         return -1;
     }
 
-    // TODO loop starts here
+    // // Read the header
+    // {
+    //     if (ferror(input_file)) {
+    //         fprintf(stderr, "ERROR: file read error\n");
+    //         return -6;
+    //     }
+    //     int result = bz_stream_read_from_file(stream, input_file, header_buffer_size, header_buffer);
+    //     if (result < 0) {
+    //         fprintf(stderr, "ERROR: cannot load header from file %s into header buffer\n", boundaries->path);
+    //         return result;
+    //     }
+    //     result = BZ2_bzDecompress(stream);
+    //     if (result != BZ_OK) {
+    //         fprintf(stderr, "ERROR: cannot process the header\n");
+    //     }
+    // }
 
-    for (int i = 0; true; i++) {
+    // TODO assert: output buffer should still be clean
+
+    // TODO loop starts here
+    FILE_seek_bits(input_file, 1627373/*1627422*/, SEEK_SET);
+
+    //int i=1;
+    // for (int i = 0; i < 1; i++) {
 
         if (ferror(input_file)) {
             fprintf(stderr, "ERROR: file read error\n");
@@ -341,19 +554,12 @@ int Blocks_read_block(Blocks *boundaries, size_t i) {
         }
 
         // If nothing in buffer, read some compressed data into it from the file.
-        if (stream->avail_in == 0 && !myfeof(input_file))  {
-            int read_characters = fread(input_buffer, sizeof(char), input_buffer_size, input_file);
-            if (ferror(input_file)) { 
-                fprintf(stderr, "ERROR: cannot read from file at %s\n", boundaries->path);
-                return -2; 
-            };        
-
-            // Point the bzip decompressor at the newly read data.
-            stream->avail_in = read_characters;
-            stream->next_in = input_buffer;
-            input_buffer_occupancy = read_characters;
-
-            fprintf(stderr, "DEBUG: read %li bytes from file: %s\n", input_buffer_occupancy, stream->next_in);
+        if (stream->avail_in == 0 && FILE_has_more(input_file))  {
+            int result = bz_stream_read_from_file(stream, input_file, input_buffer_size, input_buffer);
+            if (result < 0) {
+                fprintf(stderr, "ERROR: cannot load data from file %s into input buffer\n", boundaries->path);
+                return result;
+            }
         }
 
         int result = BZ2_bzDecompress(stream);
@@ -364,7 +570,7 @@ int Blocks_read_block(Blocks *boundaries, size_t i) {
         };
 
         if (result == BZ_OK 
-            && myfeof(input_file) 
+            && !FILE_has_more(input_file) 
             && stream->avail_in == 0 
             && stream->avail_out > 0) {
 
@@ -374,26 +580,31 @@ int Blocks_read_block(Blocks *boundaries, size_t i) {
 
         if (result == BZ_STREAM_END) {        
             fprintf(stderr, "WARNING: stream ended before end of file\n");
-            printf("%i read: %i -> %s\n", i, result, output_buffer);
+            printf("%li read: %i -> %s\n", i, result, output_buffer);
             return output_buffer_size - stream->avail_out; 
         };
 
         if (stream->avail_out == 0) {   
             fprintf(stderr, "DEBUG: stream ended: no data read\n");  
-            printf("%i read: %i -> %s\n", i, result, output_buffer);
+            printf("%li read: %i -> %s\n", i, result, output_buffer);
             return output_buffer_size; 
         };
+        
+        printf("%li read: %i -> %s\n", i, result, output_buffer);
 
-        printf("%i read: %i -> %s\n", i, result, output_buffer);
-
-    }
+    // }
 
     return 0; // unreachable
 }
 
 int main(int argc, char *argv[]) {
     Blocks *blocks = Blocks_parse("test/test2.txt.bz2");
-    Blocks_read_block(blocks, 0);
+    // Blocks_read_block(blocks, 0);
+
+
+    for (size_t i = 0; i < blocks->read_blocks; i++) {
+        Block_from(blocks, i);
+    }
 
     // https://github.com/waigx/elinks/blob/2fc9b0bf5a2e5a1f7a5c7f4ee210e3feedd6db58/src/encoding/bzip2.c
 //     typedef 
@@ -417,18 +628,7 @@ int main(int argc, char *argv[]) {
     // FILE*   f;
     // BZFILE* b;
     // int     nBuf;
-    // char    buf[ BUFFER_SIZE ];
-    // int     bzerror;
-    // int     nWritten;
-
-    // f = fopen ( "test/test.txt.bz2", "r" );
-    // if (!f) {
-    //     fprintf(stderr, "ERROR 1");
-    //     exit(1);
-    // }
-    // b = BZ2_bzReadOpen ( &bzerror, f, 0, 0, NULL, 0 );
-    // if (bzerror != BZ_OK) {
-    // BZ2_bzReadClose ( &bzerror, b );
+    // char    buf[ BUFFER_SIZE ];true
     //     fprintf(stderr, "ERROR 2");
     //     exit(1);
     // }

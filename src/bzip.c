@@ -554,7 +554,9 @@ int bz_stream_read_from_file(bz_stream *stream, FILE* input_file,
 }
 
 typedef struct {
-
+    unsigned char   *buffer;
+    size_t  size;
+    size_t  max_size;
 } Block;
 
 Block *Block_from(Blocks *boundaries, size_t index) {
@@ -750,7 +752,65 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     printf("\n");
 
     // TODO: free what needs freeing
-    return NULL;
+
+    // Return block data
+    Block *block = malloc(sizeof(Block));
+    block->buffer = buffer;
+    block->size = read_bytes;
+    block->max_size = buffer_size_in_bytes;
+    return block;
+}
+
+int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffer) {
+
+    // Hand-crank the BZip2 decompressor
+    bz_stream *stream = bz_stream_init();
+    if (stream == NULL) {
+        fprintf(stderr, "ERROR: cannot initialize stream\n");  
+        return -1;
+    }         
+
+    // Set array contents to zero, just in case.
+    memset(output_buffer, 0, output_buffer_size);
+
+    // Tell BZip2 where to write decompressed data.
+	stream->avail_out = output_buffer_size;
+	stream->next_out = output_buffer;
+
+    // Tell BZip2 where to getr input data from.
+    stream->avail_in = block->size;
+    stream->next_in  = (char *) block->buffer;
+
+    // Do the do.
+    printf("<<");
+    int result = BZ2_bzDecompress(stream);
+    printf(">>\n");
+
+    if (result != BZ_OK && result != BZ_STREAM_END) { 
+        fprintf(stderr, "ERROR: cannot process stream, error no.: %i\n", result);
+        return -3;
+    };
+
+    if (result == BZ_OK 
+        && stream->avail_in == 0 
+        && stream->avail_out > 0) {
+
+        fprintf(stderr, "ERROR: cannot process stream, unexpected end of file\n");
+        return -4; 
+    };
+
+    if (result == BZ_STREAM_END) {        
+        fprintf(stderr, "WARNING: stream ended before end of file\n");
+        return output_buffer_size - stream->avail_out; 
+    };
+
+    if (stream->avail_out == 0) {   
+        fprintf(stderr, "DEBUG: stream ended: no data read\n");  
+        return output_buffer_size; 
+    };
+
+    // Supposedly unreachable.
+    return 0;
 }
  
  
@@ -867,56 +927,19 @@ Block *Block_from(Blocks *boundaries, size_t index) {
 }
 
 int main(int argc, char *argv[]) {
+    // Find all the blocks in the input file
     Blocks *blocks = Blocks_parse("test/test3.txt.bz2");
-    // Blocks_read_block(blocks, 0);
-
 
     for (size_t i = 0; i < blocks->read_blocks; i++) {
-        Block_from(blocks, i);
+        // Extract a single compressed block
+        Block *block = Block_from(blocks, i);
+
+        // Create the structures for outputting the decompressed data into
+        size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
+        char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
+
+        
+
+        Block_decompress(block, output_buffer_size, output_buffer);
     }
-
-    // https://github.com/waigx/elinks/blob/2fc9b0bf5a2e5a1f7a5c7f4ee210e3feedd6db58/src/encoding/bzip2.c
-//     typedef 
-//    struct {
-//       char *next_in;
-//       unsigned int avail_in;
-//       unsigned int total_in;
-
-//       char *next_out;
-//       unsigned int avail_out;
-//       unsigned int total_out;
-
-//       void *state;
-
-//       void *(*bzalloc)(void *,int,int);
-//       void (*bzfree)(void *,void *);
-//       void *opaque;
-//    } 
-//    bz_stream;
-
-    // FILE*   f;
-    // BZFILE* b;
-    // int     nBuf;
-    // char    buf[ BUFFER_SIZE ];true
-    //     fprintf(stderr, "ERROR 2");
-    //     exit(1);
-    // }
-
-    // bzerror = BZ_OK;
-    // int i = 0;
-    // while (bzerror == BZ_OK) {
-    //     nBuf = BZ2_bzRead ( &bzerror, b, buf, BUFFER_SIZE );
-    //     if (bzerror == BZ_OK) {
-    //         printf("%d: %d %s\n", i, nBuf, buf);
-    //         /* do something with buf[0 .. nBuf-1] */
-    //     }
-    //     i++;
-    // }
-    // if (bzerror != BZ_STREAM_END) {
-    //     BZ2_bzReadClose ( &bzerror, b );
-    //     fprintf(stderr, "ERROR 3");
-    //     exit(1);
-    // } else {
-    //     BZ2_bzReadClose ( &bzerror, b );
-    // }
 }

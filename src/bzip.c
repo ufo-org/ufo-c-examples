@@ -665,6 +665,10 @@ Block *Block_from(Blocks *boundaries, size_t index) {
         return NULL;
     }
 
+    for (int i = sizeof(uint32_t) - 1; i >= 0; i--) {
+        buffer[read_bytes++] = 0xff & (block_crc >> (8 * i));
+    }
+
     // This is how much we can read byte-by-byte before getting into trouble at
     // the end of the file.
     size_t block_end_byte_aligned_offset_in_bits = (block_end_offset_in_bits / 8) * 8;
@@ -781,6 +785,11 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     stream->avail_in = block->size;
     stream->next_in  = (char *) block->buffer;
 
+    for (int i = 0; i < stream->avail_in; i++) {
+        printf("%02x ", (unsigned char) stream->next_in[i]);
+    }
+    printf("\n");
+
     // Do the do.
     printf("<<");
     int result = BZ2_bzDecompress(stream);
@@ -800,7 +809,6 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     };
 
     if (result == BZ_STREAM_END) {        
-        fprintf(stderr, "WARNING: stream ended before end of file\n");
         return output_buffer_size - stream->avail_out; 
     };
 
@@ -825,8 +833,7 @@ int main(int argc, char *argv[]) {
         size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
         char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
 
-        
-
-        Block_decompress(block, output_buffer_size, output_buffer);
+        int output_buffer_occupancy = Block_decompress(block, output_buffer_size, output_buffer);
+        printf("%d: %s", output_buffer_occupancy, output_buffer);
     }
 }

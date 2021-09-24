@@ -8,6 +8,10 @@
 #include <assert.h>
 #include "ufo_c/target/ufo_c.h"
 
+#define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
+#define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
+#define MIN_LOAD_COUNT  (4L * 1024)
+
 #include <bzlib.h>
 
 // The bzip code was adapted from bzip2recovery.
@@ -88,21 +92,20 @@ int BitBuffer_append_bit(BitBuffer* buffer, unsigned char bit) {
         return -2;
     }
 
-
     // Bit twiddle the new bit into position
     buffer->data[buffer->current_byte] |= bit << (7 - buffer->current_bit);
 
     // Print
-    fprintf(stderr, "DEBUG: Append %i to BitBuffer %liB + %ib\n", 
-            bit, buffer->current_byte, buffer->current_bit);
+    // fprintf(stderr, "DEBUG: Append %i to BitBuffer %liB + %ib\n", 
+            // bit, buffer->current_byte, buffer->current_bit);
 
-    for (size_t i = 0; i < buffer->max_bytes; i++) {
-        printf("%02x ", buffer->data[i]);
-        if ((i + 1) % 80 == 0) {
-            printf("\n");
-        }
-    }
-    printf("\n");
+    // for (size_t i = 0; i < buffer->max_bytes; i++) {
+    //     printf("%02x ", buffer->data[i]);
+    //     if ((i + 1) % 80 == 0) {
+    //         printf("\n");
+    //     }
+    // }
+    // printf("\n");
 
     // If overflow bit, bump bytes. This goes first.
     if (buffer->current_bit == 7) {
@@ -124,11 +127,16 @@ int BitBuffer_append_byte(BitBuffer* buffer, unsigned char byte) {
     for (unsigned char i = 0; i < 8; i++) {
         unsigned char mask = 1 << (8 - 1 - i);
         unsigned char bit = (byte & mask) > 0 ? 1 : 0;
-        printf("byte=%02x i=%i mask=%02x ?=%02x bit=%i\n", byte, i, mask, (byte & mask), bit);
+        //printf("byte=%02x i=%i mask=%02x ?=%02x bit=%i ", byte, i, mask, (byte & mask), bit);
+        //printf("current byte=%li current bit=%i ", buffer->current_byte, buffer->current_bit);
         int result = BitBuffer_append_bit(buffer, bit);
         if (result < 0) {
             return result;
         }    
+        // for (int ix = 0; ix < buffer->max_bytes; ix++) {
+        //     printf("%02x ", buffer->data[ix]);
+        // }
+        // printf("\n");
     }
     return 0;
 }
@@ -137,7 +145,7 @@ int BitBuffer_append_uint32(BitBuffer* buffer, uint32_t value) {
     for (unsigned char i = 0; i < 32; i++) {
         uint32_t mask = 1 << (32 - 1 - i);
         uint32_t bit = (value & mask) > 0 ? 1 : 0;
-        printf("value=%08x i=%i mask=%08x ?=%08x bit=%i\n", value, i, mask, (value & mask), bit);
+        // printf("value=%08x i=%i mask=%08x ?=%08x bit=%i\n", value, i, mask, (value & mask), bit);
         int result = BitBuffer_append_bit(buffer, bit);
         if (result < 0) {
             return result;
@@ -279,16 +287,16 @@ int FileBitStream_seek_bit(FileBitStream *input_stream, uint64_t bit_offset) {
     // Repopulate the shift register. This should read 64b, and we should be at
     // `byte offset` afterwards.
     size_t read_bytes = fread(&input_stream->shift_register.senior, sizeof(uint32_t), 1, input_stream->handle);
-    if (read_bytes != sizeof(uint32_t)) {
+    if (read_bytes != 1) {
         fprintf(stderr, "ERROR: Error populating senior part of shift buffer " 
-                "(read %li bytes instead of the expected %li).\n", 
-                read_bytes, sizeof(uint32_t));
+                "(read %li bytes instead of the expected %i).\n", 
+                read_bytes, 1);
     }
     read_bytes = fread(&input_stream->shift_register.junior, sizeof(uint32_t), 1, input_stream->handle);
-    if (read_bytes != sizeof(uint32_t)) {
+    if (read_bytes != 1) {
         fprintf(stderr, "ERROR: Error populating junior part of shift buffer " 
-                "(read %li bytes instead of the expected %li).\n", 
-                read_bytes, sizeof(uint32_t));
+                "(read %li bytes instead of the expected %i).\n", 
+                read_bytes, 1);
     }
 
     fprintf(stderr, "DEBUG: Populated buffer %x :: %x.\n", 
@@ -332,16 +340,13 @@ void FileBitStream_free(FileBitStream *input_stream) {
 // and end of each block.
 typedef struct {
     const char *path;
-
-    size_t blocks;
-    uint64_t block_start_index[MAX_BLOCKS]; // TODO make into a vector that can expand.
-    uint64_t block_end_index[MAX_BLOCKS];
-
-    size_t read_blocks;
-    uint64_t read_block_start_index[MAX_BLOCKS];
-    uint64_t read_block_end_index[MAX_BLOCKS];
-    
+    size_t blocksx;
+    uint64_t start_offset[MAX_BLOCKS];
+    uint64_t end_offset[MAX_BLOCKS];
+    uint64_t decompressed_start_offset[MAX_BLOCKS];    
+    uint64_t decompressed_end_offset[MAX_BLOCKS];   
     size_t bad_blocks;
+    size_t decompressed_size;
 } Blocks;
 
 Blocks *Blocks_parse(const char *input_file_path) {
@@ -353,6 +358,10 @@ Blocks *Blocks_parse(const char *input_file_path) {
         return NULL;
     }
 
+    size_t blocks = 0;
+    uint64_t start_offset[MAX_BLOCKS];
+    uint64_t end_offset[MAX_BLOCKS];
+
     // Initialize the counters.
     Blocks *boundaries = (Blocks *) malloc(sizeof(Blocks));    
     if (NULL == boundaries) {
@@ -361,8 +370,7 @@ Blocks *Blocks_parse(const char *input_file_path) {
     }
 
     boundaries->path = input_file_path;
-    boundaries->blocks = 0;
-    boundaries->read_blocks = 0;
+    boundaries->blocksx = 0;
     boundaries->bad_blocks = 0;
 
     // Shifting buffer consisting of two parts: senior (most significant) and
@@ -378,69 +386,59 @@ Blocks *Blocks_parse(const char *input_file_path) {
         if (bit < 0) {
             // If we're inside a block (not at the beginning or within an end
             // marker) we report an error and stop processing the block.
-            if (input_stream->read_bits >= boundaries->block_start_index[boundaries->blocks] && 
-                (input_stream->read_bits - boundaries->block_start_index[boundaries->blocks]) >= 40) {
-                boundaries->block_end_index[boundaries->blocks] = input_stream->read_bits - 1;
-                if (boundaries->blocks > 0) {
+            if (input_stream->read_bits >= start_offset[blocks] && 
+               (input_stream->read_bits - start_offset[blocks]) >= 40) {
+                end_offset[blocks] = input_stream->read_bits - 1;
+                if (blocks > 0) {
                     fprintf(stderr, "DEBUG: block %li runs from %li to %li (incomplete)\n",
-                            boundaries->blocks, 
-                            boundaries->block_start_index[boundaries->blocks], 
-                            boundaries->block_end_index[boundaries->blocks]);
+                            blocks, 
+                            start_offset[blocks], 
+                            end_offset[blocks]);
 
                     boundaries->bad_blocks++;
                 }               
             } else {
                 // Otherwise, I guess this is just EOF?
-                boundaries->blocks--;
+                blocks--;
             }
 
             // Proceed to next block.
             break;
         }
 
-        // Drop bit into shift register-like buffer
-        // senior_buffer = (senior_buffer << 1) | (junior_buffer >> 31);
-        // junior_buffer = (junior_buffer << 1) | (bit & 1); 
-        //ShiftRegister_append(&shift_register, bit);
-
-        //printf("%lx %lx == %lx %lx\n", senior_buffer, junior_buffer, SENIOR_BLOCK_HEADER, JUNIOR_BLOCK_HEADER);   
-        //printf("%lx %lx == %lx %lx\n\n", senior_buffer, junior_buffer, SENIOR_BLOCK_ENDMARK, JUNIOR_BLOCK_ENDMARK);
-
         // Detect block header or block end mark
         if (ShiftRegister_equal_with_senior_mask(&input_stream->shift_register, &block_header_template, 0x0000ffff)
             || ShiftRegister_equal_with_senior_mask(&input_stream->shift_register, &block_endmark_template, 0x0000ffff)) {
-        // if (((shift_register.senior & 0x0000ffff) == SENIOR_BLOCK_HEADER && shift_register.junior == JUNIOR_BLOCK_HEADER) ||
-        //     ((shift_register.senior & 0x0000ffff) == SENIOR_BLOCK_ENDMARK && shift_register.junior == JUNIOR_BLOCK_ENDMARK)) {
 
             // If we found a bounary, the end of the preceding block is 49 bytes
             // ago (or zero if it's the first block)
-            boundaries->block_end_index[boundaries->blocks] = 
+            end_offset[blocks] = 
                 (input_stream->read_bits > 49) ? input_stream->read_bits - 49 : 0;
 
             // We finished reading a whole block
-            if (boundaries->blocks > 0 
-                && (boundaries->block_end_index[boundaries->blocks] 
-                - boundaries->block_start_index[boundaries->blocks]) >= 130) {
+            if (blocks > 0 
+                && (end_offset[blocks] 
+                - start_offset[blocks]) >= 130) {
 
                 fprintf(stderr, "DEBUG: block %li runs from %li to %li\n",
-                        boundaries->read_blocks + 1, 
-                        boundaries->block_start_index[boundaries->blocks], 
-                        boundaries->block_end_index[boundaries->blocks]);
+                        boundaries->blocksx + 1, 
+                        start_offset[blocks], 
+                        end_offset[blocks]);
 
                 // Store the offsets
-                boundaries->read_block_start_index[boundaries->read_blocks] = 
-                    boundaries->block_start_index[boundaries->blocks];
-                boundaries->read_block_end_index[boundaries->read_blocks] = 
-                    boundaries->block_end_index[boundaries->blocks];
+                boundaries->start_offset[boundaries->blocksx] = 
+                    start_offset[blocks];
+                boundaries->end_offset[boundaries->blocksx] = 
+                    end_offset[blocks];
 
                 // Increment number of complete blocks so far
-                boundaries->read_blocks++;
+                boundaries->blocksx++;
 
-                //boundaries->block_start_index[boundaries->blocks] = input_stream->read_bits;
+                //start_offset[blocks] = input_stream->read_bits;
             }
 
             // Too many blocks
-            if (boundaries->blocks >= MAX_BLOCKS) {
+            if (blocks >= MAX_BLOCKS) {
                 fprintf(stderr, "ERROR: analyzer can handle up to %i blocks, "
                                 "but more blocks were found in file %s\n",
                                 MAX_BLOCKS, input_stream->path);
@@ -450,8 +448,8 @@ Blocks *Blocks_parse(const char *input_file_path) {
 
             // Increment number of blocks encountered so far and record the
             // start offset of next encountered block
-            boundaries->blocks++;
-            boundaries->block_start_index[boundaries->blocks] = input_stream->read_bits;
+            blocks++;
+            start_offset[blocks] = input_stream->read_bits;
         }
     }
 
@@ -502,39 +500,39 @@ bz_stream *bz_stream_init() {
     return stream;
 }
 
-bool FILE_has_more(FILE* file) {
-    int character = fgetc(file);
+// bool FILE_has_more(FILE* file) {
+//     int character = fgetc(file);
 
-    if (character == EOF) {
-        return false;
-    }
+//     if (character == EOF) {
+//         return false;
+//     }
 
-    ungetc(character, file);
-    return true;   
-}
+//     ungetc(character, file);
+//     return true;   
+// }
 
-int FILE_seek_bits(FILE *file, uint64_t bits, int whence) {
-    // Maff
-    uint64_t bytes = bits / 8;
-    int remainder = bits % 8;
+// int FILE_seek_bits(FILE *file, uint64_t bits, int whence) {
+//     // Maff
+//     uint64_t bytes = bits / 8;
+//     int remainder = bits % 8;
 
-    fprintf(stderr, "DEBUG: Seeking %lib or %liB + %ib\n", bits, bytes, remainder);
+//     fprintf(stderr, "DEBUG: Seeking %lib or %liB + %ib\n", bits, bytes, remainder);
 
-    // Move to byte offset
-    int seek_result = fseek(file, bytes, whence);
-    if (seek_result < 1) {
-        return seek_result;
-    }
+//     // Move to byte offset
+//     int seek_result = fseek(file, bytes, whence);
+//     if (seek_result < 1) {
+//         return seek_result;
+//     }
 
-    // Move to bit offset
-    for (int extra_bit = 0; extra_bit < remainder; extra_bit++) {
-        int character = fgetc(file);
-        if (character == EOF) {
-            return ferror(file) ? -1 : 0;
-        }        
-    }    
-    return 0;
-}
+//     // Move to bit offset
+//     for (int extra_bit = 0; extra_bit < remainder; extra_bit++) {
+//         int character = fgetc(file);
+//         if (character == EOF) {
+//             return ferror(file) ? -1 : 0;
+//         }        
+//     }    
+//     return 0;
+// }
 
 int bz_stream_read_from_file(bz_stream *stream, FILE* input_file,
                              size_t input_buffer_size, char *input_buffer) {
@@ -559,18 +557,20 @@ typedef struct {
     size_t  max_size;
 } Block;
 
+int __block = 0;
+
 Block *Block_from(Blocks *boundaries, size_t index) {
 
-    if (boundaries->read_blocks <= index) {
+    if (boundaries->blocksx <= index) {
         fprintf(stderr, "ERROR: no block at index %li\n", index);
         return NULL;
     }
 
     // Retrieve the offsets, for convenience
-    uint64_t block_start_offset_in_bits = boundaries->read_block_start_index[index];
-    uint64_t block_end_offset_in_bits = boundaries->read_block_end_index[index];
+    uint64_t block_start_offset_in_bits = boundaries->start_offset[index];
+    uint64_t block_end_offset_in_bits = boundaries->end_offset[index]; // Inclusive
     uint64_t payload_size_in_bits = block_end_offset_in_bits - block_start_offset_in_bits + 1;
-    uint64_t header_end_offset_in_bits = boundaries->read_block_start_index[0];
+    uint64_t header_end_offset_in_bits = boundaries->start_offset[0];
 
     fprintf(stderr, "DEBUG: "
         "Reading block %li from file %s between offsets %li and %li (%lib)\n",
@@ -592,7 +592,7 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     //  - Padding       0-7b    
 
     // Assume the first boundary is at a byte boundary, otherwise something is very wrong
-    assert(boundaries->read_block_start_index[0] % 8 == 0);
+    assert(boundaries->start_offset[0] % 8 == 0);
 
     // Calculate size of buffer through the power of arithmetic
     uint64_t buffer_size_in_bits = 
@@ -668,11 +668,26 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     for (int i = sizeof(uint32_t) - 1; i >= 0; i--) {
         buffer[read_bytes++] = 0xff & (block_crc >> (8 * i));
     }
+    
+    // This is how much we can copy byte-by-byte before getting into trouble at
+    // the end of the file. The remainder we have to copy bit-by-bit.
+    size_t block_end_byte_aligned_offset_in_bits = (((block_end_offset_in_bits) / 8) * 8);
+    size_t remaining_byte_unaligned_bits = (block_end_offset_in_bits + 1) % 8;
 
-    // This is how much we can read byte-by-byte before getting into trouble at
-    // the end of the file.
-    size_t block_end_byte_aligned_offset_in_bits = (block_end_offset_in_bits / 8) * 8;
-    size_t remaining_byte_unaligned_bits = block_end_offset_in_bits % 8;
+    // block 0 has to read until offset 1627373b = 1627368b + 6b 
+    // block 1 has to read until offset 2898839b = 2898832b + 0b  BUT SHOULD BE 2b
+    // block 2 has to read until offset 4162819b = 4162816b + 4b 
+    // block 3 has to read until offset 4371764b = 4371760b + 5b  BUT SHOULD BE 1b
+
+    // // FIXME 
+    if (__block == 1) {
+        remaining_byte_unaligned_bits = 2;
+    }
+    if (__block == 3) {
+        remaining_byte_unaligned_bits = 1;
+    }
+
+    printf("ZZZ %li\n", input_stream->read_bits);
 
     fprintf(stderr, "DEBUG: The block has to read until offset %lib = %lib + %lib.\n", 
             block_end_offset_in_bits,
@@ -682,9 +697,9 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     // Read until the last byte-aligned datum of the block
     while (input_stream->read_bits < block_end_byte_aligned_offset_in_bits) {
         int byte = FileBitStream_read_byte(input_stream);
-        printf("%4li %4li %02x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
+        //printf("%4li %4li %02x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
         if (byte < 0) {
-            printf("%li %li %02x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
+            // printf("%li %li %02x \n", input_stream->read_bits, block_end_offset_in_bits, byte);
             fprintf(stderr, "ERROR: cannot read byte from bit stream\n");
             FileBitStream_free(input_stream);
             // TODO free what needs freeing
@@ -693,12 +708,14 @@ Block *Block_from(Blocks *boundaries, size_t index) {
         buffer[read_bytes] = byte;
         read_bytes++;
     }
-    printf("%li %li \n", input_stream->read_bits, block_end_offset_in_bits);
+    // printf("%li %li \n", input_stream->read_bits, block_end_offset_in_bits);
+    printf("ZZZ %li\n", input_stream->read_bits);
+    //printf("--- %02x\n", FileBitStream_read_byte(input_stream));
 
     // Ok, now we write the rest into a buffer to align it.
     BitBuffer bit_buffer = BitBuffer_new(1 + footer_magic_size + 4); // TODO size
     for (int annoying_unaligned_bit = 0; 
-         annoying_unaligned_bit <= remaining_byte_unaligned_bits; // sus
+         annoying_unaligned_bit < remaining_byte_unaligned_bits ; // sus
          annoying_unaligned_bit++) {
 
         // Read a bit from file, yay
@@ -708,6 +725,8 @@ Block *Block_from(Blocks *boundaries, size_t index) {
             return NULL;
         }
 
+        printf("unaligned bit %i/%li -> %i\n", annoying_unaligned_bit, remaining_byte_unaligned_bits, bit);
+
         // Write that bit to buffer, yay
         int result = BitBuffer_append_bit(&bit_buffer, (unsigned char) bit);
         if (result < 0) {
@@ -715,6 +734,13 @@ Block *Block_from(Blocks *boundaries, size_t index) {
             return NULL;
         }
     }
+
+    // XXX
+    printf("XXX ");
+    for (int i = 0; i < bit_buffer.max_bytes; i++) {
+        printf("%02x ", bit_buffer.data[i]);
+    }
+    printf("\n");
 
     // Ok, now we write out the footer to the buffer, to align that.
     fprintf(stderr, "DEBUG: Footer magic begins\n");
@@ -728,6 +754,12 @@ Block *Block_from(Blocks *boundaries, size_t index) {
             fprintf(stderr, "ERROR: cannot write magic footer byte to bit buffer\n");
             return NULL;
         }
+
+        // printf("xxx ");
+        // for (int i = 0; i < bit_buffer.max_bytes; i++) {
+        //     printf("%02x ", bit_buffer.data[i]);
+        // }
+        // printf("\n");
     }
 
     // Write out the block CRC value as the stream CRC value, since it's just
@@ -739,21 +771,28 @@ Block *Block_from(Blocks *boundaries, size_t index) {
         return NULL;
     }
 
+    //buffer[read_bytes] |= bit_buffer.data[0];
+
+    
+
     // Write the bit buffer into the actual buffer.
+    printf("YYY ");
     for (int i = 0; i < bit_buffer.max_bytes; i++) {
+        printf("%02x ", bit_buffer.data[i]);
         buffer[read_bytes + i] = bit_buffer.data[i];
     }
+    printf("\n");
     read_bytes += bit_buffer.max_bytes;
 
     // The whole enchilada
-    fprintf(stderr, "DEBUG: Constructed buffer for this block\n");
-    for (size_t i = 0; i < read_bytes; i++) {
-        printf("%02x ", buffer[i]);
-        if ((i + 1) % 80 == 0) {
-            printf("\n");
-        }
-    }
-    printf("\n");
+    // fprintf(stderr, "DEBUG: Constructed buffer for this block\n");
+    // for (size_t i = 0; i < read_bytes; i++) {
+    //     printf("%02x ", buffer[i]);
+    //     if ((i + 1) % 80 == 0) {
+    //         printf("\n");
+    //     }
+    // }
+    // printf("\n");
 
     // TODO: free what needs freeing
 
@@ -785,15 +824,25 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     stream->avail_in = block->size;
     stream->next_in  = (char *) block->buffer;
 
-    for (int i = 0; i < stream->avail_in; i++) {
+    // Debug print
+    printf("DEBUG: Compressed block\n");
+    for (int i = 0; i < 64; i++) {
         printf("%02x ", (unsigned char) stream->next_in[i]);
+        if ((i + 1) % 16 == 0) {
+            printf("\n");
+        }
+    }
+    printf("\n\n");
+    for (int i = stream->avail_in - (64 + 4); i < stream->avail_in; i++) {
+        printf("%02x ", (unsigned char) stream->next_in[i]);
+        if ((i + 1) % 16 == 0) {
+            printf("\n");
+        }
     }
     printf("\n");
 
     // Do the do.
-    printf("<<");
     int result = BZ2_bzDecompress(stream);
-    printf(">>\n");
 
     if (result != BZ_OK && result != BZ_STREAM_END) { 
         fprintf(stderr, "ERROR: cannot process stream, error no.: %i\n", result);
@@ -821,19 +870,121 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    // Find all the blocks in the input file
-    Blocks *blocks = Blocks_parse("test/test3.txt.bz2");
+Blocks *Blocks_new(char *filename) {
+    // Parse the file.
+    Blocks *blocks = Blocks_parse(filename);
 
-    for (size_t i = 0; i < blocks->read_blocks; i++) {
-        // Extract a single compressed block
+    // Create the structures for outputting the decompressed data into
+    // (temporarily)
+    size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
+    char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
+    
+    // Unfortunatelly, we need to scan the entire file to figure out where the blocks go when decompressed.
+    size_t end_of_last_decomporessed_block = 0;
+    for (size_t i = 0; i < blocks->blocksx; i++) {
+        // Extract a single compressed block.
+        __block = i;
         Block *block = Block_from(blocks, i);
-
-        // Create the structures for outputting the decompressed data into
-        size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
-        char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
-
         int output_buffer_occupancy = Block_decompress(block, output_buffer_size, output_buffer);
-        printf("%d: %s", output_buffer_occupancy, output_buffer);
+        printf("BUFFER_SIZE=%d\n", output_buffer_occupancy);   
+
+        if (output_buffer_occupancy < 0) {
+            fprintf(stderr, "ERROR: Failed to decompress block %ld\n", i);
+            break;
+        }
+
+        // printf("%li %li %li\n", end_of_last_decomporessed_block, start_of_decompressed_block, end_of_decomporessed_block);
+
+        // Calculate start and end of this block when it is decompressed.
+        // TODO we could defer some of this.
+        blocks->decompressed_start_offset[i] = end_of_last_decomporessed_block;        
+        blocks->decompressed_end_offset[i] = blocks->decompressed_start_offset[i] + output_buffer_occupancy;
+        end_of_last_decomporessed_block += blocks->decompressed_end_offset[i];
     }
+
+    blocks->decompressed_size = end_of_last_decomporessed_block;
+
+    return blocks;
+}
+
+typedef char *BZip2;
+
+static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target) {
+    // Blocks *blocks = (Blocks *) user_data;
+
+    // bool found_start_block = false;
+    // bool found_end_block = false;
+    
+    // size_t start_block;
+    // size_t end_block;
+
+    // size_t position = start;
+
+    // Bleh
+
+    // for (size_t block_index=0; block_index < blocks->blocksx; block_index++) {
+    //     if (position >= blocks->decompressed_start_offset[block_index] 
+    //         && start <= blocks->decompressed_end_offset[block_index]) {
+    //         assert(!found_start_block);
+    //         start_block = block_index;
+    //     }
+    //     if (end >= blocks->decompressed_start_offset[block_index] 
+    //         && end <= blocks->decompressed_end_offset[block_index]) {
+    //         assert(!found_end_block);
+    //         end_block = block_index;
+    //     }
+    // }
+
+    // if (!start_block || !end_block) {
+    //     return -1;
+    // }
+
+    // size_t position = start;
+    // for (size_t block_index = start_block; block_index <= end_block; block_index++) {
+
+    // }
+
+    // size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
+    // char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
+
+    return 1;
+}
+
+BZip2 BZip2_new(UfoCore *ufo_system, char *filename) {
+    
+    Blocks *blocks = Blocks_new(filename);
+
+    // TODO check for bad blocks
+
+    UfoParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(char);
+    parameters.element_ct = blocks->decompressed_size;
+    parameters.min_load_ct = MIN_LOAD_COUNT;
+    parameters.read_only = true;
+    parameters.populate_data = blocks;
+    parameters.populate_fn = BZip2_populate;
+
+    UfoObj ufo_object = ufo_new_object(ufo_system, &parameters);
+    
+    return (BZip2) ufo_header_ptr(&ufo_object);   
+}
+
+void BZip2_free(UfoCore *ufo_system, BZip2 ptr) {
+    UfoObj ufo_object = ufo_get_by_address(ufo_system, ptr);
+    if (ufo_is_error(&ufo_object)) {
+        fprintf(stderr, "Cannot free %p: not a UFO object.\n", ptr);
+        return;
+    }
+    // TODO free what needs freeing    
+    ufo_free(ufo_object);
+}
+
+int main(int argc, char *argv[]) {
+    UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
+
+    BZip2 object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
+
+    BZip2_free(&ufo_system, object);
+    ufo_core_shutdown(ufo_system);
 }

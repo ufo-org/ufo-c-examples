@@ -35,7 +35,7 @@ Obj *Obj_new(UfoCore *ufo_system, size_t n) {
     UfoObj ufo_object = ufo_new_object(ufo_system, &parameters);
 
     if (ufo_is_error(&ufo_object)) {
-        fprintf(stderr, "Cannot create UFO object"); // TODO
+        fprintf(stderr, "Cannot create UFO object.\n");
         return NULL;
     }
 
@@ -45,7 +45,7 @@ Obj *Obj_new(UfoCore *ufo_system, size_t n) {
 void Obj_free(UfoCore *ufo_system, Obj *ptr) {
     UfoObj ufo_object = ufo_get_by_address(ufo_system, ptr);
     if (ufo_is_error(&ufo_object)) {
-        fprintf(stderr, "Cannot free %p: not a UFO object.", ptr); // TODO
+        fprintf(stderr, "Cannot free %p: not a UFO object.\n", ptr);
         return;
     }
     ufo_free(ufo_object);

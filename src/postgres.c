@@ -72,7 +72,7 @@ void retrieve_from_table(PGconn *connection, uintptr_t start, uintptr_t end, Pla
     char query[128];
     sprintf(query, "SELECT id, name, tds, run, mvp FROM league "
                    "WHERE id >= %li AND id < %li", start + 1, end + 1); // 1-indexed
-    fprintf(stderr, "DEBUG: Executing %s", query);
+    fprintf(stderr, "DEBUG: Executing %s\n", query);
     PGresult *result = PQexec(connection, query);
 
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
@@ -112,7 +112,7 @@ void retrieve_from_table(PGconn *connection, uintptr_t start, uintptr_t end, Pla
 size_t retrieve_size_of_table(PGconn *connection) {
 
     const char * query = "SELECT count(*) FROM league";
-    fprintf(stderr, "DEBUG: Executing %s", query);
+    fprintf(stderr, "DEBUG: Executing %s\n", query);
     PGresult *result = PQexec(connection, query);
 
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
@@ -152,10 +152,26 @@ int32_t Player_populate(void* user_data, uintptr_t start, uintptr_t end, unsigne
 }
 
 size_t Player_count(UfoCore *ufo_system, Player *ptr) { // TODO use the data already given to the UFO object
-    PGconn *database = connect_to_database("dbname = ufo");
-    size_t count = retrieve_size_of_table(database);
-    disconnect_from_database(database);
-    return count;
+    // Retrieve UFO object from pointer.
+    UfoObj ufo_object = ufo_get_by_address(ufo_system, ptr);
+    if (ufo_is_error(&ufo_object)) {
+        fprintf(stderr, "Cannot execute count: %p not a UFO object. Returning "
+                "size = 0.\n", ptr);
+        return 0;
+    }    
+    
+    // Grab the parameters to retrieve the length.
+    UfoParameters parameters;
+    int result = ufo_get_params(ufo_system, &ufo_object, &parameters);
+    if (result < 0) {
+        fprintf(stderr, "Cannot execute count: unable to access UFO "
+                "parameters for %p. Returning size = 0.\n", ptr);
+        ufo_free(ufo_object);
+        return 0;
+    }
+
+    // Get the count from aprameters
+    return parameters.element_ct;
 }
 
 Player *Player_new(UfoCore *ufo_system) {
@@ -164,13 +180,13 @@ Player *Player_new(UfoCore *ufo_system) {
     // Connect to database
     data->database = connect_to_database("dbname = ufo");
     if (NULL == data->database) {
-        fprintf(stderr, "Cannot connect to database");
+        fprintf(stderr, "Cannot connect to database.\n");
         return NULL;
     }
     
     // Create a mutex for controling access to database
     if (0 != pthread_mutex_init(&data->lock, NULL)) {
-        fprintf(stderr, "Cannot create UFO object query lock");
+        fprintf(stderr, "Cannot create UFO object query lock.\n");
         return NULL;
     }
 
@@ -188,7 +204,7 @@ Player *Player_new(UfoCore *ufo_system) {
 
     // Check if UFO core returns an error of its own.
     if (ufo_is_error(&ufo_object)) {
-        fprintf(stderr, "Cannot create UFO object");
+        fprintf(stderr, "Cannot create UFO object.\n");
         return NULL;
     }
 
@@ -197,15 +213,39 @@ Player *Player_new(UfoCore *ufo_system) {
 }
 
 void Player_free(UfoCore *ufo_system, Player *ptr) {
+    // Retrieve UFO object from pointer.
     UfoObj ufo_object = ufo_get_by_address(ufo_system, ptr);
     if (ufo_is_error(&ufo_object)) {
-        fprintf(stderr, "Cannot free %p: not a UFO object.", ptr); // TODO
+        fprintf(stderr, "Cannot free %p: not a UFO object.\n", ptr);
+        return;
+    }    
+    
+    // Retrieve the parameters to finalize all the user objects within.
+    UfoParameters parameters;
+    int result = ufo_get_params(ufo_system, &ufo_object, &parameters);
+    if (result < 0) {
+        fprintf(stderr, "Cannot free %p: unable to access UFO parameters: "
+                "Freeing object, but not closing DB connection and not freeing "
+                "mutex.\n", ptr);
+        ufo_free(ufo_object);
         return;
     }
-    ufo_free(ufo_object);    
-    // FIXME disconnect from DB disconnect_from_database(PGconn *connection)
-    // FIXME pthread_mutex_destroy(&data->lock);
-    // FIXME free Data object
+    Data *data = (Data *) parameters.populate_data;
+
+    // Kill the DB connection
+    disconnect_from_database(data->database);
+
+    // Kill the mutex
+    result = pthread_mutex_destroy(&data->lock);
+    if (result < 0) {
+        fprintf(stderr, "Cannot free %p: unable to access UFO parameters: "
+                "Freeing object and closing DB connection, but not freeing "
+                "mutex.\n", ptr);
+        //Do not exit.
+    }
+    
+    // Free the actual object
+    ufo_free(ufo_object);
 }
 
 // ----------------------------------------------------------------------------

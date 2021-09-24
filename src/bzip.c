@@ -567,10 +567,10 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     }
 
     // Retrieve the offsets, for convenience
-    uint64_t block_start_offset_in_bits = boundaries->start_offset[index];
-    uint64_t block_end_offset_in_bits = boundaries->end_offset[index]; // Inclusive
-    uint64_t payload_size_in_bits = block_end_offset_in_bits - block_start_offset_in_bits + 1;
-    uint64_t header_end_offset_in_bits = boundaries->start_offset[0];
+    const uint64_t block_start_offset_in_bits = boundaries->start_offset[index];
+    const uint64_t block_end_offset_in_bits = boundaries->end_offset[index]; // Inclusive
+    const uint64_t payload_size_in_bits = block_end_offset_in_bits - block_start_offset_in_bits + 1;
+    const uint64_t header_end_offset_in_bits = boundaries->start_offset[0];
 
     fprintf(stderr, "DEBUG: "
         "Reading block %li from file %s between offsets %li and %li (%lib)\n",
@@ -671,28 +671,33 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     
     // This is how much we can copy byte-by-byte before getting into trouble at
     // the end of the file. The remainder we have to copy bit-by-bit.
-    size_t block_end_byte_aligned_offset_in_bits = (((block_end_offset_in_bits) / 8) * 8);
-    size_t remaining_byte_unaligned_bits = (block_end_offset_in_bits + 1) % 8;
 
-    // block 0 has to read until offset 1627373b = 1627368b + 6b 
-    // block 1 has to read until offset 2898839b = 2898832b + 0b  BUT SHOULD BE 2b
+    //payload_size_in_bits
+    size_t block_end_byte_aligned_offset_in_bits = (payload_size_in_bits & (~0x07)) + block_start_offset_in_bits;
+    //(((block_end_offset_in_bits) / 8) * 8);
+    size_t remaining_byte_unaligned_bits = (payload_size_in_bits & (0x07));
+    //(block_end_offset_in_bits + 1) % 8;
+
+    // block 0 has to read until offset 1627373b = 1627368b + 6b                    80
+    // block 1 has to read until offset 2898839b = 2898832b + 0b  BUT SHOULD BE 2b          6
     // block 2 has to read until offset 4162819b = 4162816b + 4b 
-    // block 3 has to read until offset 4371764b = 4371760b + 5b  BUT SHOULD BE 1b
+    // block 3 has to read until offset 4371764b = 4371760b + 5b  BUT SHOULD BE 1b          4
 
     // // FIXME 
-    if (__block == 1) {
-        remaining_byte_unaligned_bits = 2;
-    }
-    if (__block == 3) {
-        remaining_byte_unaligned_bits = 1;
-    }
+    // if (__block == 1) {
+    //     remaining_byte_unaligned_bits = 2;
+    // }
+    // if (__block == 3) {
+    //     remaining_byte_unaligned_bits = 1;
+    // }
 
     printf("ZZZ %li\n", input_stream->read_bits);
 
-    fprintf(stderr, "DEBUG: The block has to read until offset %lib = %lib + %lib.\n", 
+    fprintf(stderr, "DEBUG: The block has to read until offset %lib = %lib + %lib. [%lib]\n", 
             block_end_offset_in_bits,
             block_end_byte_aligned_offset_in_bits, 
-            remaining_byte_unaligned_bits);
+            remaining_byte_unaligned_bits,
+            block_start_offset_in_bits);
 
     // Read until the last byte-aligned datum of the block
     while (input_stream->read_bits < block_end_byte_aligned_offset_in_bits) {

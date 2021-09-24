@@ -175,16 +175,16 @@ Player *Player_new(UfoCore *ufo_system) {
     }
 
     // Create UFO
-    UfoObj ufo_object = ufo_new_no_prototype(
-        ufo_system,  
-        /* header size */ 0,  
-        /* element size */ strideOf(Player),
-        /* min elements loaded at a time */ MIN_LOAD_COUNT,
-        /* read-only */ true, 
-        /* size */ retrieve_size_of_table(data->database), 
-        /* data */ data,
-        /* populate function */ Player_populate
-    );
+    UfoParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(Player);
+    parameters.element_ct = retrieve_size_of_table(data->database);
+    parameters.min_load_ct = MIN_LOAD_COUNT;
+    parameters.read_only = true;
+    parameters.populate_data = data;
+    parameters.populate_fn = Player_populate;
+    
+    UfoObj ufo_object = ufo_new_object(ufo_system, &parameters);
 
     // Check if UFO core returns an error of its own.
     if (ufo_is_error(&ufo_object)) {

@@ -1,5 +1,32 @@
 # ufo-c-examples
 
+## Building
+
+Before building, retrievew the code of a submodule:
+
+```bash
+git submodule update --init --recursive
+```
+
+To update the submodule, pull it.
+
+```bash
+cd src/ufo_c && git pull origin main && cd ../..
+```
+
+Then build all packages:
+
+```bash
+make
+```
+
+Or build individual examples:
+```bash
+make example
+make psql
+make bzip
+```
+
 ## Postgresql example
 
 ```bash

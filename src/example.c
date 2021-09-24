@@ -22,20 +22,23 @@ static int32_t Obj_populate(void* user_data, uintptr_t start, uintptr_t end, uns
 }
 
 Obj *Obj_new(UfoCore *ufo_system, size_t n) {
-    UfoObj ufo_object = ufo_new_no_prototype(
-        ufo_system,  
-        /* header size */ 0,  
-        /* element size */ strideOf(Obj),
-        /* min elements loaded at a time */ MIN_LOAD_COUNT,
-        /* read-only */ false, 
-        /* size */ n, 
-        /* data */ NULL,
-        /* populate function */ Obj_populate
-    );
+
+    UfoParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(Obj);
+    parameters.element_ct = n;
+    parameters.min_load_ct = MIN_LOAD_COUNT;
+    parameters.read_only = false;
+    parameters.populate_data = NULL;
+    parameters.populate_fn = Obj_populate;
+
+    UfoObj ufo_object = ufo_new_object(ufo_system, &parameters);
+
     if (ufo_is_error(&ufo_object)) {
         fprintf(stderr, "Cannot create UFO object"); // TODO
         return NULL;
     }
+
     return (Obj *) ufo_header_ptr(&ufo_object);
 }
 

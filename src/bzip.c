@@ -268,9 +268,9 @@ int FileBitStream_seek_bit(FileBitStream *input_stream, uint64_t bit_offset) {
     uint64_t byte_offset_without_buffer = byte_offset - (sizeof(uint32_t) * 2); // Computron will maff
     int remainder_bit_offset = bit_offset % 8;
 
-    fprintf(stderr, "DEBUG: Seeking %lib = %liB + %liB + %ib.\n", 
-            bit_offset, byte_offset_without_buffer, 
-            (sizeof(uint32_t) * 2), remainder_bit_offset);
+    // fprintf(stderr, "DEBUG: Seeking %lib = %liB + %liB + %ib.\n", 
+    //         bit_offset, byte_offset_without_buffer, 
+    //         (sizeof(uint32_t) * 2), remainder_bit_offset);
 
     // Reset the buffer
     input_stream->buffer = 0;
@@ -299,9 +299,9 @@ int FileBitStream_seek_bit(FileBitStream *input_stream, uint64_t bit_offset) {
                 read_bytes, 1);
     }
 
-    fprintf(stderr, "DEBUG: Populated buffer %x :: %x.\n", 
-            input_stream->shift_register.senior, 
-            input_stream->shift_register.junior);
+    // fprintf(stderr, "DEBUG: Populated buffer %x :: %x.\n", 
+    //         input_stream->shift_register.senior, 
+    //         input_stream->shift_register.junior);
 
     // Seeking counts as reading the bits, so we account for all the bits. We
     // oly ever seek form the beginning of the file, so this is easy.
@@ -639,14 +639,14 @@ Block *Block_from(Blocks *boundaries, size_t index) {
         read_bytes++;
     }
 
-    fprintf(stderr, "DEBUG: Stream header (%lib/%liB) ", header_end_offset_in_bits, read_bytes);
-    for (size_t i = 0; i < read_bytes; i++) {
-        fprintf(stderr, "%2x ", buffer[i]);
-        if ((i + 1) % 80 == 0) {
-            fprintf(stderr, "\n");
-        }
-    }
-    fprintf(stderr, "\n");
+    // fprintf(stderr, "DEBUG: Stream header (%lib/%liB) ", header_end_offset_in_bits, read_bytes);
+    // for (size_t i = 0; i < read_bytes; i++) {
+    //     fprintf(stderr, "%02x ", buffer[i]);
+    //     if ((i + 1) % 80 == 0) {
+    //         fprintf(stderr, "\n");
+    //     }
+    // }
+    // fprintf(stderr, "\n");
 
     // Seek to the block boundary
     int seek_result = FileBitStream_seek_bit(input_stream, block_start_offset_in_bits);
@@ -691,7 +691,7 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     //     remaining_byte_unaligned_bits = 1;
     // }
 
-    printf("ZZZ %li\n", input_stream->read_bits);
+    // printf("ZZZ %li\n", input_stream->read_bits);
 
     fprintf(stderr, "DEBUG: The block has to read until offset %lib = %lib + %lib. [%lib]\n", 
             block_end_offset_in_bits,
@@ -714,7 +714,7 @@ Block *Block_from(Blocks *boundaries, size_t index) {
         read_bytes++;
     }
     // printf("%li %li \n", input_stream->read_bits, block_end_offset_in_bits);
-    printf("ZZZ %li\n", input_stream->read_bits);
+    // printf("ZZZ %li\n", input_stream->read_bits);
     //printf("--- %02x\n", FileBitStream_read_byte(input_stream));
 
     // Ok, now we write the rest into a buffer to align it.
@@ -730,7 +730,7 @@ Block *Block_from(Blocks *boundaries, size_t index) {
             return NULL;
         }
 
-        printf("unaligned bit %i/%li -> %i\n", annoying_unaligned_bit, remaining_byte_unaligned_bits, bit);
+        // printf("unaligned bit %i/%li -> %i\n", annoying_unaligned_bit, remaining_byte_unaligned_bits, bit);
 
         // Write that bit to buffer, yay
         int result = BitBuffer_append_bit(&bit_buffer, (unsigned char) bit);
@@ -748,12 +748,12 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     // printf("\n");
 
     // Ok, now we write out the footer to the buffer, to align that.
-    fprintf(stderr, "DEBUG: Footer magic begins\n");
+    // fprintf(stderr, "DEBUG: Footer magic begins\n");
     for (int footer_magic_byte = 0; 
          footer_magic_byte < footer_magic_size; 
          footer_magic_byte++) {
 
-        fprintf(stderr, "footer magic byte %2x \n", footer_magic[footer_magic_byte]);
+        // fprintf(stderr, "footer magic byte %2x \n", footer_magic[footer_magic_byte]);
         int result = BitBuffer_append_byte(&bit_buffer, footer_magic[footer_magic_byte]);
         if (result < 0) {
             fprintf(stderr, "ERROR: cannot write magic footer byte to bit buffer\n");
@@ -769,7 +769,7 @@ Block *Block_from(Blocks *boundaries, size_t index) {
 
     // Write out the block CRC value as the stream CRC value, since it's just
     // one block.
-    fprintf(stderr, "DEBUG: Write out stream CRC value to %04x\n", block_crc);
+    // fprintf(stderr, "DEBUG: Write out stream CRC value to %04x\n", block_crc);
     int result = BitBuffer_append_uint32(&bit_buffer, block_crc);
     if (result < 0) {
         fprintf(stderr, "ERROR: cannot write CRC byte to bit buffer\n");
@@ -819,7 +819,7 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     }         
 
     // Set array contents to zero, just in case.
-    memset(output_buffer, 0, output_buffer_size);
+    memset(output_buffer, 0xcc, output_buffer_size);
 
     // Tell BZip2 where to write decompressed data.
 	stream->avail_out = output_buffer_size;
@@ -828,6 +828,9 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     // Tell BZip2 where to getr input data from.
     stream->avail_in = block->size;
     stream->next_in  = (char *) block->buffer;
+
+    printf("stream->avail_in %i\n",  stream->avail_in);
+    printf("stream->avail_out %i\n", stream->avail_out);
 
     // Debug print
     printf("DEBUG: Compressed block\n");
@@ -849,29 +852,48 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     // Do the do.
     int result = BZ2_bzDecompress(stream);
 
+    printf("stream->avail_out (2) %i\n", stream->avail_out);
+    printf("stream->total_out %i %i\n", stream->total_out_hi32, stream->total_out_lo32);
+    printf("result %i\n", result);
+
+    printf("Decompressed bytes: ");
+    for (int i = 0; i < 40; i++) {
+        printf("%02x ", stream->next_out[i]);
+        // if ((i + 1) % 16 == 0) {
+        //     printf("\n");
+        // }
+    }
+    printf("\n");
+
     if (result != BZ_OK && result != BZ_STREAM_END) { 
         fprintf(stderr, "ERROR: cannot process stream, error no.: %i\n", result);
+        BZ2_bzDecompressEnd(stream);
         return -3;
     };
 
     if (result == BZ_OK 
         && stream->avail_in == 0 
         && stream->avail_out > 0) {
-
-        fprintf(stderr, "ERROR: cannot process stream, unexpected end of file\n");
+        BZ2_bzDecompressEnd(stream);
+        fprintf(stderr, "ERROR: cannot process stream, unexpected end of file\n");        
         return -4; 
     };
 
     if (result == BZ_STREAM_END) {        
-        return output_buffer_size - stream->avail_out; 
+        fprintf(stderr, "DEBUG: finshed processing stream\n");  
+        BZ2_bzDecompressEnd(stream); // FIXME
+        return output_buffer_size - stream->avail_out;
     };
 
     if (stream->avail_out == 0) {   
         fprintf(stderr, "DEBUG: stream ended: no data read\n");  
+        BZ2_bzDecompressEnd(stream);
         return output_buffer_size; 
     };
 
     // Supposedly unreachable.
+    fprintf(stderr, "ERROR: unreachable isn't\n");  
+    BZ2_bzDecompressEnd(stream);
     return 0;
 }
 
@@ -885,29 +907,28 @@ Blocks *Blocks_new(char *filename) {
     char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
     
     // Unfortunatelly, we need to scan the entire file to figure out where the blocks go when decompressed.
-    size_t end_of_last_decomporessed_block = 0;
+    size_t end_of_last_decompressed_block = 0;
     for (size_t i = 0; i < blocks->blocks; i++) {
         // Extract a single compressed block.
         __block = i;
         Block *block = Block_from(blocks, i);
         int output_buffer_occupancy = Block_decompress(block, output_buffer_size, output_buffer);
-        printf("BUFFER_SIZE=%d\n", output_buffer_occupancy);   
+        fprintf(stderr, "DEBUG: Finished decompressing block %li, found %i elements\n", i, output_buffer_occupancy);   
 
         if (output_buffer_occupancy < 0) {
-            fprintf(stderr, "ERROR: Failed to decompress block %ld\n", i);
+            fprintf(stderr, "ERROR: Failed to decompress block %li, stopping\n", i);
             break;
         }
 
-        // printf("%li %li %li\n", end_of_last_decomporessed_block, start_of_decompressed_block, end_of_decomporessed_block);
-
         // Calculate start and end of this block when it is decompressed.
         // TODO we could defer some of this.
-        blocks->decompressed_start_offset[i] = end_of_last_decomporessed_block;        
+        blocks->decompressed_start_offset[i] = end_of_last_decompressed_block + (0 == i ? 0 : 1);        
         blocks->decompressed_end_offset[i] = blocks->decompressed_start_offset[i] + output_buffer_occupancy;
-        end_of_last_decomporessed_block += blocks->decompressed_end_offset[i];
+        end_of_last_decompressed_block = blocks->decompressed_end_offset[i];
     }
 
-    blocks->decompressed_size = end_of_last_decomporessed_block;
+    // Add one, because end is inclusive.
+    blocks->decompressed_size = end_of_last_decompressed_block + 1;
 
     return blocks;
 }
@@ -916,13 +937,18 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
 
     Blocks *blocks = (Blocks *) user_data;
 
-    size_t block_index=0;
+    for (size_t block = 0 ; block < blocks->blocks; block ++) {
+        fprintf(stderr, "DEBUG: block %li : decompressed %15li-%15li [%15li]\n", block,
+            blocks->decompressed_start_offset[block], blocks->decompressed_end_offset[block], 
+            blocks->decompressed_end_offset[block] - blocks->decompressed_start_offset[block] + 1);
+    }
+
+    size_t block_index = 0;
     bool found_start = false;
 
     // Ignore blocks that do not are not a part of the current segment.
     for (; block_index < blocks->blocks; block_index++) {
-        if (start >= blocks->decompressed_start_offset[block_index] 
-            && start <= blocks->decompressed_end_offset[block_index]) { 
+        if (start >= blocks->decompressed_start_offset[block_index]) { 
             found_start = true;
             break;
         }
@@ -935,10 +961,10 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     }
 
     // At this point block index is the index of the block containing the start.
-    // We calculate the delta: the offset of the start of the UFO segment with
+    // We calculate the bytes_to_skip: the offset of the start of the UFO segment with
     // respect to the first value in the Bzip2 block.
-    size_t delta = start - blocks->decompressed_start_offset[block_index];
-    printf("delta = %li\n", delta);
+    size_t bytes_to_skip = start - blocks->decompressed_start_offset[block_index];
+    printf("bytes_to_skip = %li\n", bytes_to_skip);
 
     // The index in the target buffer.
     // size_t target_index = 0;
@@ -946,6 +972,7 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     // Temp buffers, because I don't know how to do it without it.
     size_t decompressed_buffer_size = 1024 * 1024 * 1024; // 1MB
     char *decompressed_buffer = (char *) calloc(decompressed_buffer_size, sizeof(char));
+    memset(decompressed_buffer, 0x5c,decompressed_buffer_size); // FIXME remove
 
     // Check if we filled all the requested bytes from all the necessary BZip blocks.
     bool found_end = false;
@@ -965,7 +992,7 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
         Block *block = Block_from(blocks, block_index);
         int decompressed_buffer_occupancy = Block_decompress(block, decompressed_buffer_size, decompressed_buffer);
 
-        size_t elements_to_copy = decompressed_buffer_occupancy - delta;
+        size_t elements_to_copy = decompressed_buffer_occupancy - bytes_to_skip;
         printf("eleemnts to copy: %li vs element_to_fill %li\n", elements_to_copy, left_to_fill_in_target);
         if (elements_to_copy > left_to_fill_in_target) {
             elements_to_copy = left_to_fill_in_target;
@@ -979,8 +1006,8 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
         // back, but the block won't produce anything unless it's given room to
         // write out the whole block. <-- TODO: this needs verification
         printf("Buffer %li %i: \n", block_index, decompressed_buffer_occupancy);
-        memcpy(/* destination */ target + offset_in_target + delta, 
-               /* source      */ decompressed_buffer, 
+        memcpy(/* destination */ target + offset_in_target, 
+               /* source      */ decompressed_buffer + bytes_to_skip, 
                /* elements    */ elements_to_copy); // TODO remove elements to make sure we don't load more than `end`
 
         // Start filling the target in the next iteration from the palce we
@@ -988,11 +1015,10 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
         offset_in_target += elements_to_copy;        
         printf("new offset_in_target: %li\n", offset_in_target);
 
-        // Only the first block has delta != 0.
-        delta = 0;   
+        // Only the first block has bytes_to_skip != 0.
+        bytes_to_skip = 0;   
 
-        if (end >= blocks->decompressed_start_offset[block_index] 
-            && end <= blocks->decompressed_end_offset[block_index]) { 
+        if ((end - 1) <= blocks->decompressed_end_offset[block_index]) { 
             found_end = true;
             break;
         }
@@ -1008,7 +1034,12 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     return 0;
 }
 
-char *BZip2_new(UfoCore *ufo_system, char *filename) {
+typedef struct {
+    size_t size;
+    char *data;
+} BZip2;
+
+BZip2 BZip2_new(UfoCore *ufo_system, char *filename) {
     
     Blocks *blocks = Blocks_new(filename);
     
@@ -1026,13 +1057,19 @@ char *BZip2_new(UfoCore *ufo_system, char *filename) {
     UfoObj ufo_object = ufo_new_object(ufo_system, &parameters);
     // printf("%p %p %i %i\n", &ufo_object, ufo_header_ptr(&ufo_object), ufo_core_is_error(ufo_system), ufo_is_error(&ufo_object));
     
-    return (char *) ufo_header_ptr(&ufo_object);   
+    BZip2 object;
+    object.data = ufo_header_ptr(&ufo_object);   
+    object.size = blocks->decompressed_size;
+
+    printf("LENGTH %li\n", object.size);
+    
+    return object;
 }
 
-void BZip2_free(UfoCore *ufo_system, char *ptr) {
-    UfoObj ufo_object = ufo_get_by_address(ufo_system, ptr);
+void BZip2_free(UfoCore *ufo_system, BZip2 object) {
+    UfoObj ufo_object = ufo_get_by_address(ufo_system, object.data);
     if (ufo_is_error(&ufo_object)) {
-        fprintf(stderr, "Cannot free %p: not a UFO object.\n", ptr);
+        fprintf(stderr, "Cannot free %p (%li): not a UFO object.\n", object.data, object.size);
         return;
     }
     // TODO free what needs freeing    
@@ -1042,11 +1079,22 @@ void BZip2_free(UfoCore *ufo_system, char *ptr) {
 int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
 
-    char *text = BZip2_new(&ufo_system, "test/test2.txt.bz2");
+    BZip2 object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
 
-    printf("8 %c\n", text[20001]);
-    
-    BZip2_free(&ufo_system, text);
+    size_t snippet_size = 50;
+    size_t snippet_ct = 4;
+    size_t snippet_offsets[] = {0, 0x300, 0x002bd120, 0x0018fff0};
+
+    for (int j = 0; j < 2; j++)
+    for (size_t i = 0; i < snippet_ct; i++) {
+        printf("snippet %li [%li:%li]: ", i, snippet_offsets[i], snippet_offsets[i] + snippet_size - 1);
+        for (size_t c = 0; c < snippet_size; c++) {
+            printf("%02x ", object.data[snippet_offsets[i] + c]);
+        }
+        printf("\n");
+    }   
+
+    BZip2_free(&ufo_system, object);
     ufo_core_shutdown(ufo_system);
 }
 

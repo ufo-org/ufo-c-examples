@@ -852,9 +852,22 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     // Do the do.
     int result = BZ2_bzDecompress(stream);
 
+    printf("stream->avail_in  (2) %i\n", stream->avail_in);
     printf("stream->avail_out (2) %i\n", stream->avail_out);
     printf("stream->total_out %i %i\n", stream->total_out_hi32, stream->total_out_lo32);
     printf("result %i\n", result);
+
+    bool all_unset = true;
+    for (int i = 0; i < stream->total_out_lo32; i++) { 
+        if (((unsigned char) stream->next_out[i]) != 0xcc) {
+            // printf("NOT UNSET %i %02x\n", i, stream->next_out[i]);
+            all_unset = false;
+        }
+    }
+    if (all_unset) {
+        printf("ERROR: block did not write to buffer\n");
+    }
+
 
     printf("Decompressed bytes: ");
     for (int i = 0; i < 40; i++) {
@@ -1079,17 +1092,18 @@ void BZip2_free(UfoCore *ufo_system, BZip2 object) {
 int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
 
-    BZip2 object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
+    BZip2 object = BZip2_new(&ufo_system, "test/test.txt.bz2");
 
-    size_t snippet_size = 50;
-    size_t snippet_ct = 4;
-    size_t snippet_offsets[] = {0, 0x300, 0x002bd120, 0x0018fff0};
+    size_t snippet_size = 100;
+    size_t snippet_ct = 16;    
 
     for (int j = 0; j < 2; j++)
-    for (size_t i = 0; i < snippet_ct; i++) {
-        printf("snippet %li [%li:%li]: ", i, snippet_offsets[i], snippet_offsets[i] + snippet_size - 1);
+    for (size_t i = 1; i < snippet_ct; i++) {
+        size_t snippet_offset = 0xdbf00 + i * 0x00050;
+        if (snippet_offset > object.size) printf("!!! ");
+        printf("snippet %li [%08lx:%08lx]: ", i, snippet_offset, snippet_offset + snippet_size - 1);
         for (size_t c = 0; c < snippet_size; c++) {
-            printf("%02x ", object.data[snippet_offsets[i] + c]);
+            printf("%02x ", object.data[snippet_offset + c]);
         }
         printf("\n");
     }   

@@ -808,6 +808,11 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     return 0;
 }
 
+void Blocks_free(Blocks *blocks) {
+    // Nothing to free, 
+    free(blocks);
+}
+
 Blocks *Blocks_new(char *filename) {
     // Parse the file.
     Blocks *blocks = Blocks_parse(filename);
@@ -982,11 +987,15 @@ typedef struct {
     char *data;
 } BZip2;
 
-BZip2 BZip2_new(UfoCore *ufo_system, char *filename) {
+BZip2 *BZip2_new(UfoCore *ufo_system, char *filename) {
     
     Blocks *blocks = Blocks_new(filename);
     
     // TODO check for bad blocks
+    if (blocks->bad_blocks > 0) {
+        REPORT("UFO some blocks could not be read. Quitting.\n");
+        return NULL;
+    }
 
     UfoParameters parameters;
     parameters.header_size = 0;
@@ -1003,23 +1012,43 @@ BZip2 BZip2_new(UfoCore *ufo_system, char *filename) {
         REPORT("UFO object could not be created.\n");
     }
 
-    BZip2 object;
-    object.data = ufo_header_ptr(&ufo_object);   
-    object.size = blocks->decompressed_size;
+    BZip2 *object = (BZip2 *) malloc(sizeof(BZip2));
+    object->data = ufo_header_ptr(&ufo_object);   
+    object->size = blocks->decompressed_size;
 
-    LOG("UFO created with length %li and payload at %p.\n", object.size, object.data);
+    LOG("UFO created with length %li and payload at %p.\n", 
+        object->size, object->data);
     
     return object;
 }
 
-void BZip2_free(UfoCore *ufo_system, BZip2 object) {
-    UfoObj ufo_object = ufo_get_by_address(ufo_system, object.data);
+void BZip2_free(UfoCore *ufo_system, BZip2 *object) {
+    // Grab UFO object for this address.
+    UfoObj ufo_object = ufo_get_by_address(ufo_system, object->data);
     if (ufo_is_error(&ufo_object)) {
-        REPORT("Cannot free %p (%li): not a UFO object.\n", object.data, object.size);
+        REPORT("Cannot free %p (%li): not a UFO object.\n", 
+               object->data, object->size);
         return;
     }
-    // TODO free what needs freeing    
+    
+    // Retrieve the parameters to finalize all the user objects within.
+    UfoParameters parameters;
+    int result = ufo_get_params(ufo_system, &ufo_object, &parameters);
+    if (result < 0) {
+        REPORT("Cannot free %p: unable to access UFO parameters.\n", object->data);
+        ufo_free(ufo_object);
+        return;
+    }
+
+    // Free the blocks struct
+    Blocks *data = (Blocks *) parameters.populate_data;
+    Blocks_free(data);
+
+    // Free the actual object
     ufo_free(ufo_object);
+
+    // Free the object wrapper struct;
+    free(object);
 }
 
 int main(int argc, char *argv[]) {
@@ -1027,21 +1056,21 @@ int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
 
     // Create UFO object
-    BZip2 object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
+    BZip2 *object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
     
     // Iterate over all the blocks.
-    for (size_t i = 0, increment = MIN_LOAD_COUNT; /*i < 10 * increment*/ i < object.size; i += increment) {
-        if (i + increment >= object.size) {
-            increment = object.size - i;
+    for (size_t i = 0, increment = MIN_LOAD_COUNT; /*i < 10 * increment*/ i < object->size; i += increment) {
+        if (i + increment >= object->size) {
+            increment = object->size - i;
         }
-        printf("init: i=%li increment=%li object.size=%li -> %c\n", i, increment, object.size, object.data[i]);
+        printf("init: i=%li increment=%li object->size=%li -> '%c'\n", i, increment, object->size, object->data[i]);
         printf("[0x%08lx-0x%08lx] \"", i, i + increment );
         for (size_t j = 0; j < 20; j++) {        
-            printf("%c", object.data[i + j]);
+            printf("%c", object->data[i + j]);
         }
         printf("\" ... \"");
         for (size_t j = increment - 20; j < increment; j++) {        
-            printf("%c", object.data[i + j]);
+            printf("%c", object->data[i + j]);
         }
         printf("\"\n");
         

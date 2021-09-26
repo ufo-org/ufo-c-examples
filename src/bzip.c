@@ -1134,14 +1134,25 @@ int main(int argc, char *argv[]) {
 
     BZip2 object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
 
-    for (int j = 0; j < 2; j++)
-    for (size_t i = object.size - 1; i >= object.size - 10000; i -= 1000) {        
-        printf("CHECK %16li [%08lx]: %02x\n", i, i, object.data[i]);
-        // for (size_t c = 0; c < snippet_size; c++) {
-        //     printf("%02x ", object.data[snippet_offset + c]);
-        // }
-        // printf("\n");
+    // for (int j = 0; j < 2; j++)
+    printf("TAP TAP TAP READY\n");
+    for (size_t i = 0, increment = MIN_LOAD_COUNT; i < 10 * increment; i += increment) {
+        printf("init: %c\n", object.data[i]);
+        printf("[0x%08lx-0x%08lx] \"", i, i + increment );
+        for (size_t j = 0; j < 20; j++) {        
+            printf("%c", object.data[i + j]);
+        }
+        printf("\" ... \"");
+        for (size_t j = increment - 20; j < increment; j++) {        
+            printf("%c", object.data[i + j]);
+        }
+        printf("\"\n");
+        if (i + increment >= object.size) {
+            increment = object.size - i;
+        }
     }   
+    printf("TAP TAP TAP TAP OKAY\n");
+
 
     BZip2_free(&ufo_system, object);
     ufo_core_shutdown(ufo_system);

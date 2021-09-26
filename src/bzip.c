@@ -819,7 +819,7 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     }         
 
     // Set array contents to zero, just in case.
-    memset(output_buffer, 0x00, output_buffer_size);
+    memset(output_buffer, 0x7c, output_buffer_size);
 
     // Tell BZip2 where to write decompressed data.
 	stream->avail_out = output_buffer_size;
@@ -829,33 +829,33 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     stream->avail_in = block->size;
     stream->next_in  = (char *) block->buffer;
 
-    printf("stream->avail_in %i\n",  stream->avail_in);
-    printf("stream->avail_out %i\n", stream->avail_out);
+    // printf("stream->avail_in %i\n",  stream->avail_in);
+    // printf("stream->avail_out %i\n", stream->avail_out);
 
-    // Debug print
-    printf("DEBUG: Compressed block\n");
-    for (int i = 0; i < 64; i++) {
-        printf("%02x ", (unsigned char) stream->next_in[i]);
-        if ((i + 1) % 16 == 0) {
-            printf("\n");
-        }
-    }
-    printf("\n\n");
-    for (int i = stream->avail_in - (64 + 4); i < stream->avail_in; i++) {
-        printf("%02x ", (unsigned char) stream->next_in[i]);
-        if ((i + 1) % 16 == 0) {
-            printf("\n");
-        }
-    }
-    printf("\n");
+    // // Debug print
+    // printf("DEBUG: Compressed block\n");
+    // for (int i = 0; i < 64; i++) {
+    //     printf("%02x ", (unsigned char) stream->next_in[i]);
+    //     if ((i + 1) % 16 == 0) {
+    //         printf("\n");
+    //     }
+    // }
+    // printf("\n\n");
+    // for (int i = stream->avail_in - (64 + 4); i < stream->avail_in; i++) {
+    //     printf("%02x ", (unsigned char) stream->next_in[i]);
+    //     if ((i + 1) % 16 == 0) {
+    //         printf("\n");
+    //     }
+    // }
+    // printf("\n");
 
     // Do the do.
     int result = BZ2_bzDecompress(stream);
 
-    printf("stream->avail_in  (2) %i\n", stream->avail_in);
-    printf("stream->avail_out (2) %i\n", stream->avail_out);
-    printf("stream->total_out %i %i\n", stream->total_out_hi32, stream->total_out_lo32);
-    printf("result %i\n", result);
+    // printf("stream->avail_in  (2) %i\n", stream->avail_in);
+    // printf("stream->avail_out (2) %i\n", stream->avail_out);
+    // printf("stream->total_out %i %i\n", stream->total_out_hi32, stream->total_out_lo32);
+    // printf("result %i\n", result);
 
     bool all_unset = true;
     for (int i = 0; i < stream->total_out_lo32; i++) { 
@@ -895,14 +895,11 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     if (result == BZ_STREAM_END) {        
         fprintf(stderr, "DEBUG: finshed processing stream\n");  
         BZ2_bzDecompressEnd(stream); // FIXME
-            printf("Decompressed bytes: ");
+        printf("Decompressed bytes: ");
         for (int i = 0; i < 40; i++) {
             printf("%02x ", output_buffer[i]);
-            // if ((i + 1) % 16 == 0) {
-            //     printf("\n");
-            // }
         }
-    printf("\n");
+        printf("\n");
         return output_buffer_size - stream->avail_out;
     };
 
@@ -950,7 +947,6 @@ Blocks *Blocks_new(char *filename) {
 
     // Add one, because end is inclusive.
     blocks->decompressed_size = end_of_last_decompressed_block + 1;
-
     return blocks;
 }
 
@@ -958,8 +954,8 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
 
     Blocks *blocks = (Blocks *) user_data;
 
-    for (size_t block = 0 ; block < blocks->blocks; block ++) {
-        fprintf(stderr, "DEBUG: block %li : decompressed %15li-%15li [%15li]\n", block,
+    for (size_t block = 0; block < blocks->blocks; block ++) {
+        fprintf(stderr, "DEBUG: UFO checking block lengths: block %li : decompressed %li-%li [%li]\n", block,
             blocks->decompressed_start_offset[block], blocks->decompressed_end_offset[block], 
             blocks->decompressed_end_offset[block] - blocks->decompressed_start_offset[block] + 1);
     }
@@ -969,10 +965,14 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
 
     // Ignore blocks that do not are not a part of the current segment.
     for (; block_index < blocks->blocks; block_index++) {
-        if (start >= blocks->decompressed_start_offset[block_index]) { 
+        if (start >= blocks->decompressed_start_offset[block_index] && start <= blocks->decompressed_end_offset[block_index]) { 
             found_start = true;
+            fprintf(stderr, "DEBUG: UFO will start at block %li: start=%li <= decompressed_offset=%li\n", 
+                    block_index, start, blocks->decompressed_start_offset[block_index]);
             break;
         }
+        fprintf(stderr, "DEBUG: UFO skips block %li: start=%li <= decompressed_offset=%li \n", 
+                block_index, start, blocks->decompressed_start_offset[block_index]);
     }
 
     // The start index is not within any of the blocks?
@@ -984,8 +984,8 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     // At this point block index is the index of the block containing the start.
     // We calculate the bytes_to_skip: the offset of the start of the UFO segment with
     // respect to the first value in the Bzip2 block.
-    size_t bytes_to_skip = start - blocks->decompressed_start_offset[block_index];
-    printf("bytes_to_skip = %li\n", bytes_to_skip);
+    size_t bytes_to_skip = start - (blocks->decompressed_start_offset[block_index]);
+    printf("DEBUG, UFO will skip %lu bytes of block %lu\n", bytes_to_skip, block_index);
 
     // The index in the target buffer.
     // size_t target_index = 0;
@@ -1000,7 +1000,6 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
 
     // The offset in target at which to paste the next decompressed BZip block.
     size_t offset_in_target = 0;
-    printf("offset_in_target: %li\n", offset_in_target);
 
     // The number of bytes we still have to generate.
     size_t left_to_fill_in_target = end - start;
@@ -1010,14 +1009,25 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     for (; block_index < blocks->blocks; block_index++) {
 
         // Retrive and decompress the block.
+        fprintf(stderr, "DEBUG: UFO loads and decompresses block %li.\n", block_index);
         Block *block = Block_from(blocks, block_index);
         int decompressed_buffer_occupancy = Block_decompress(block, decompressed_buffer_size, decompressed_buffer);
+        if (decompressed_buffer_occupancy <= 0) {
+            fprintf(stderr, "DEBUG: UFO failed to decompress BZip.\n");
+            return -1;
+        } else {
+            fprintf(stderr, "DEBUG: UFO retirved %i elements by decompressing block %li.\n", 
+                    decompressed_buffer_occupancy, block_index);
+        }
 
         size_t elements_to_copy = decompressed_buffer_occupancy - bytes_to_skip;
-        printf("eleemnts to copy: %li vs element_to_fill %li\n", elements_to_copy, left_to_fill_in_target);
+        fprintf(stderr, "DEBUG: UFO can retrieve %lu = %i - %li elements from BZip block "
+               "and needs to grab %lu elements to fill the target location\n", 
+               elements_to_copy, decompressed_buffer_occupancy, bytes_to_skip, left_to_fill_in_target);
         if (elements_to_copy > left_to_fill_in_target) {
             elements_to_copy = left_to_fill_in_target;
         }        
+        assert(decompressed_buffer_occupancy >= bytes_to_skip);
 
         // Copy the contents of the block to the target area. I can't do this
         // without this intermediate buffer, because the first block might need
@@ -1026,21 +1036,37 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
         // Also the last one has to disregards some number of bytes from the
         // back, but the block won't produce anything unless it's given room to
         // write out the whole block. <-- TODO: this needs verification
-        printf("Buffer %li %i: \n", block_index, decompressed_buffer_occupancy);
         memcpy(/* destination */ target + offset_in_target, 
                /* source      */ decompressed_buffer + bytes_to_skip, 
                /* elements    */ elements_to_copy); // TODO remove elements to make sure we don't load more than `end`
 
+        fprintf(stderr, "DEBUG: UFO copies %lu elements from decompressed block %lu to target area %p = %p + %lu\n", 
+                elements_to_copy, block_index, decompressed_buffer + bytes_to_skip, decompressed_buffer, bytes_to_skip);
+
+
+        printf("DEBUG: source ");
+        for (size_t i = 0; i < 40 /* elements_to_copy */; i++) {
+            printf("%02x ", ((unsigned char *)(decompressed_buffer + bytes_to_skip))[i]);
+        }
+        printf("\n");
+
+        printf("DEBUG: target ");
+        for (size_t i = 0; i < 40 /* elements_to_copy */; i++) {
+            printf("%02x ", ((unsigned char *)(target + offset_in_target))[i]);
+        }
+        printf("\n");
+
         // Start filling the target in the next iteration from the palce we
         // finished here.
         offset_in_target += elements_to_copy;        
-        printf("new offset_in_target: %li\n", offset_in_target);
 
         // Only the first block has bytes_to_skip != 0.
         bytes_to_skip = 0;   
 
-        if ((end - 1) <= blocks->decompressed_end_offset[block_index]) { 
+        if ((end - 1) >= blocks->decompressed_start_offset[block_index] 
+            && (end - 1) <= blocks->decompressed_end_offset[block_index]) { 
             found_end = true;
+            fprintf(stderr, "YES END\n");
             break;
         }
     }
@@ -1052,6 +1078,7 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
         return 1;
     }
 
+    fprintf(stderr, "YES GOOD\n");
     return 0;
 }
 
@@ -1078,11 +1105,16 @@ BZip2 BZip2_new(UfoCore *ufo_system, char *filename) {
     UfoObj ufo_object = ufo_new_object(ufo_system, &parameters);
     // printf("%p %p %i %i\n", &ufo_object, ufo_header_ptr(&ufo_object), ufo_core_is_error(ufo_system), ufo_is_error(&ufo_object));
     
+    if (ufo_is_error(&ufo_object)) {
+        printf("ERROR: ufo object could not be created.\n");
+    }
+
     BZip2 object;
     object.data = ufo_header_ptr(&ufo_object);   
     object.size = blocks->decompressed_size;
 
     printf("LENGTH %li\n", object.size);
+    printf("DATA %p\n", object.data);
     
     return object;
 }
@@ -1102,18 +1134,13 @@ int main(int argc, char *argv[]) {
 
     BZip2 object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
 
-    size_t snippet_size = 100;
-    size_t snippet_ct = 16;    
-
     for (int j = 0; j < 2; j++)
-    for (size_t i = 1; i < snippet_ct; i++) {
-        size_t snippet_offset = 0xdbf00 + i * 0x00050;
-        if (snippet_offset > object.size) printf("!!! ");
-        printf("snippet %li [%08lx:%08lx]: ", i, snippet_offset, snippet_offset + snippet_size - 1);
-        for (size_t c = 0; c < snippet_size; c++) {
-            printf("%02x ", object.data[snippet_offset + c]);
-        }
-        printf("\n");
+    for (size_t i = object.size - 1; i >= object.size - 10000; i -= 1000) {        
+        printf("CHECK %16li [%08lx]: %02x\n", i, i, object.data[i]);
+        // for (size_t c = 0; c < snippet_size; c++) {
+        //     printf("%02x ", object.data[snippet_offset + c]);
+        // }
+        // printf("\n");
     }   
 
     BZip2_free(&ufo_system, object);

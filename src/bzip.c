@@ -554,6 +554,8 @@ typedef struct {
 int __block = 0;
 
 void Block_free(Block *block) {
+    LOG("Free %p\n", block);
+    LOG("Free %p\n", block->buffer);
     free(block->buffer);
     free(block);
 }
@@ -821,7 +823,7 @@ Blocks *Blocks_new(char *filename) {
 
         // Extract a single compressed block.
         __block = i;
-        Block *block = Block_from(blocks, i);
+        Block *block = Block_from(blocks, i);        
         int output_buffer_occupancy = Block_decompress(block, output_buffer_size, output_buffer);
         LOG("Finished decompressing block %li, found %i elements\n", i, output_buffer_occupancy);   
 
@@ -891,7 +893,7 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     // Temp buffers, because I don't know how to do it without it.
     size_t decompressed_buffer_size = DECOMPRESSED_BUFFER_SIZE; // 1MB
     char *decompressed_buffer = (char *) calloc(decompressed_buffer_size, sizeof(char));
-    // memset(decompressed_buffer, 0x5c,decompressed_buffer_size); // FIXME remove
+    // memset(decompressed_buffer, 0x5c, decompressed_buffer_size); // FIXME remove
 
     // Check if we filled all the requested bytes from all the necessary BZip blocks.
     bool found_end = false;
@@ -915,16 +917,17 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
             return -1;
         } else {
             LOG("UFO retrieved %i elements by decompressing block %li.\n", 
-                    decompressed_buffer_occupancy, block_index);
+                decompressed_buffer_occupancy, block_index);
         }
-
         size_t elements_to_copy = decompressed_buffer_occupancy - bytes_to_skip;
         LOG("UFO can retrieve %lu = %i - %li elements from BZip block "
-               "and needs to grab %lu elements to fill the target location\n", 
-               elements_to_copy, decompressed_buffer_occupancy, bytes_to_skip, left_to_fill_in_target);
-        if (elements_to_copy > left_to_fill_in_target) {
+            "and needs to grab %lu elements to fill the target location.\n", 
+            elements_to_copy, decompressed_buffer_occupancy, bytes_to_skip, left_to_fill_in_target);
+        if (elements_to_copy > left_to_fill_in_target) {            
             elements_to_copy = left_to_fill_in_target;
         }        
+        LOG("UFO will grab %lu elements from BZip decompressed block to fill the target location.\n", 
+            elements_to_copy);
         assert(decompressed_buffer_occupancy >= bytes_to_skip);
 
         // Copy the contents of the block to the target area. I can't do this
@@ -934,21 +937,24 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
         // Also the last one has to disregards some number of bytes from the
         // back, but the block won't produce anything unless it's given room to
         // write out the whole block. <-- TODO: this needs verification
+        LOG("UFO copies %lu elements from decompressed block %lu to target area %p = %p + %lu\n", 
+            elements_to_copy, block_index, decompressed_buffer + bytes_to_skip, 
+            decompressed_buffer, bytes_to_skip);
         memcpy(/* destination */ target + offset_in_target, 
                /* source      */ decompressed_buffer + bytes_to_skip, 
                /* elements    */ elements_to_copy); // TODO remove elements to make sure we don't load more than `end`
 
-        LOG("UFO copies %lu elements from decompressed block %lu to target area %p = %p + %lu\n", 
-                elements_to_copy, block_index, decompressed_buffer + bytes_to_skip, decompressed_buffer, bytes_to_skip);
-
         // Start filling the target in the next iteration from the palce we
         // finished here.
-        offset_in_target += elements_to_copy;        
+        offset_in_target += elements_to_copy;
+
+        // We copied these many elements already.
+        left_to_fill_in_target -= elements_to_copy;     
 
         // Only the first block has bytes_to_skip != 0.
         bytes_to_skip = 0;   
 
-         // Cleanup.
+        // Cleanup.
         Block_free(block);        
 
         if ((end - 1) >= blocks->decompressed_start_offset[block_index] 

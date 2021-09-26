@@ -21,7 +21,7 @@
 
 #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
 #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
-#define MIN_LOAD_COUNT  (4L * 1024) // TODO set to around block size, so around 900kB
+#define MIN_LOAD_COUNT  (900L * 1024) // around block size, so around 900kB
 
 #include <bzlib.h>
 
@@ -914,7 +914,7 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
             LOG("UFO failed to decompress BZip.\n");
             return -1;
         } else {
-            LOG("UFO retirved %i elements by decompressing block %li.\n", 
+            LOG("UFO retrieved %i elements by decompressing block %li.\n", 
                     decompressed_buffer_occupancy, block_index);
         }
 
@@ -1025,7 +1025,10 @@ int main(int argc, char *argv[]) {
     
     // Iterate over all the blocks.
     for (size_t i = 0, increment = MIN_LOAD_COUNT; /*i < 10 * increment*/ i < object.size; i += increment) {
-        printf("init: %c\n", object.data[i]);
+        if (i + increment >= object.size) {
+            increment = object.size - i;
+        }
+        printf("init: i=%li increment=%li object.size=%li -> %c\n", i, increment, object.size, object.data[i]);
         printf("[0x%08lx-0x%08lx] \"", i, i + increment );
         for (size_t j = 0; j < 20; j++) {        
             printf("%c", object.data[i + j]);
@@ -1035,14 +1038,17 @@ int main(int argc, char *argv[]) {
             printf("%c", object.data[i + j]);
         }
         printf("\"\n");
-        if (i + increment >= object.size) {
-            increment = object.size - i;
-        }
+        
     }   
+
+    printf("DONE\n");
 
     // Cleanup
     BZip2_free(&ufo_system, object);
+
+    printf("FREE\n");
     ufo_core_shutdown(ufo_system);
+    printf("UM\n");
 }
 
 // int main(int argc, char *argv[]) {

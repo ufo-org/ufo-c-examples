@@ -819,7 +819,7 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     }         
 
     // Set array contents to zero, just in case.
-    memset(output_buffer, 0xcc, output_buffer_size);
+    memset(output_buffer, 0x00, output_buffer_size);
 
     // Tell BZip2 where to write decompressed data.
 	stream->avail_out = output_buffer_size;
@@ -871,7 +871,7 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
 
     printf("Decompressed bytes: ");
     for (int i = 0; i < 40; i++) {
-        printf("%02x ", stream->next_out[i]);
+        printf("%02x ", output_buffer[i]);
         // if ((i + 1) % 16 == 0) {
         //     printf("\n");
         // }
@@ -895,6 +895,14 @@ int Block_decompress(Block *block, size_t output_buffer_size, char *output_buffe
     if (result == BZ_STREAM_END) {        
         fprintf(stderr, "DEBUG: finshed processing stream\n");  
         BZ2_bzDecompressEnd(stream); // FIXME
+            printf("Decompressed bytes: ");
+        for (int i = 0; i < 40; i++) {
+            printf("%02x ", output_buffer[i]);
+            // if ((i + 1) % 16 == 0) {
+            //     printf("\n");
+            // }
+        }
+    printf("\n");
         return output_buffer_size - stream->avail_out;
     };
 
@@ -1092,7 +1100,7 @@ void BZip2_free(UfoCore *ufo_system, BZip2 object) {
 int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
 
-    BZip2 object = BZip2_new(&ufo_system, "test/test.txt.bz2");
+    BZip2 object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
 
     size_t snippet_size = 100;
     size_t snippet_ct = 16;    
@@ -1111,5 +1119,22 @@ int main(int argc, char *argv[]) {
     BZip2_free(&ufo_system, object);
     ufo_core_shutdown(ufo_system);
 }
+
+// int main(int argc, char *argv[]) {
+//     // Find all the blocks in the input file
+//     Blocks *blocks = Blocks_parse("test/test2.txt.bz2");
+
+//     for (size_t i = 0; i < blocks->blocks; i++) {
+//         // Extract a single compressed block
+//         Block *block = Block_from(blocks, i);
+
+//         // Create the structures for outputting the decompressed data into
+//         size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
+//         char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
+
+//         int output_buffer_occupancy = Block_decompress(block, output_buffer_size, output_buffer);
+//         printf("%d: %s", output_buffer_occupancy, output_buffer);
+//     }
+// }
 
 // FIXME add is_error checks to all the examples...

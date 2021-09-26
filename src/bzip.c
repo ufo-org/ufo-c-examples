@@ -1047,14 +1047,9 @@ int main(int argc, char *argv[]) {
         
     }   
 
-    printf("DONE\n");
-
     // Cleanup
     BZip2_free(&ufo_system, object);
-
-    printf("FREE\n");
     ufo_core_shutdown(ufo_system);
-    printf("UM\n");
 }
 
 // int main(int argc, char *argv[]) {

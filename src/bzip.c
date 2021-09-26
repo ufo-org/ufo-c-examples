@@ -1058,23 +1058,11 @@ int main(int argc, char *argv[]) {
     // Create UFO object
     BZip2 *object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
     
-    // Iterate over all the blocks.
-    for (size_t i = 0, increment = MIN_LOAD_COUNT; /*i < 10 * increment*/ i < object->size; i += increment) {
-        if (i + increment >= object->size) {
-            increment = object->size - i;
-        }
-        printf("init: i=%li increment=%li object->size=%li -> '%c'\n", i, increment, object->size, object->data[i]);
-        printf("[0x%08lx-0x%08lx] \"", i, i + increment );
-        for (size_t j = 0; j < 20; j++) {        
-            printf("%c", object->data[i + j]);
-        }
-        printf("\" ... \"");
-        for (size_t j = increment - 20; j < increment; j++) {        
-            printf("%c", object->data[i + j]);
-        }
-        printf("\"\n");
-        
-    }   
+    // Iterate over everything.
+    for (size_t i = 0; i < object->size; i++) {
+        printf("%c", object->data[i]);
+    }
+    printf("\n");
 
     // Cleanup
     BZip2_free(&ufo_system, object);

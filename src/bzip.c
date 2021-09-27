@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
+
+#include "bzip.h"
 #include "ufo_c/target/ufo_c.h"
 
 #define DEBUG
@@ -664,7 +666,6 @@ Block *Block_from(Blocks *boundaries, size_t index) {
     size_t block_end_byte_aligned_offset_in_bits = (payload_size_in_bits & (~0x07)) + block_start_offset_in_bits;
     size_t remaining_byte_unaligned_bits = (payload_size_in_bits & (0x07));
 
-
     LOG("The block has to read until offset %lib = %lib + %lib. [%lib]\n", 
             block_end_offset_in_bits,
             block_end_byte_aligned_offset_in_bits, 
@@ -715,7 +716,6 @@ Block *Block_from(Blocks *boundaries, size_t index) {
             REPORT("cannot write magic footer byte to bit buffer\n");
             return NULL;
         }
-
     }
 
     // Write out the block CRC value as the stream CRC value, since it's just
@@ -981,11 +981,6 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
 
     return 0;
 }
-
-typedef struct {
-    size_t size;
-    char *data;
-} BZip2;
 
 BZip2 *BZip2_new(UfoCore *ufo_system, char *filename) {
     

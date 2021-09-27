@@ -4,6 +4,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <libpq-fe.h>
+
+#include "postgres.h"
 #include "ufo_c/target/ufo_c.h"
 
 #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
@@ -58,14 +60,6 @@ void end_transaction(PGconn *connection) {
 }
 
 // ----------------------------------------------------------------------------
-
-typedef struct Player {
-    int    id;
-    char   name[64];
-    int    tds;
-    double run; 
-    int    mvp;
-} Player;
 
 void retrieve_from_table(PGconn *connection, uintptr_t start, uintptr_t end, Player *output) {
 

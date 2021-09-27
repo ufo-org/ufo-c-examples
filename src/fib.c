@@ -1,6 +1,9 @@
+#include "fib.h"
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+
 #include "ufo_c/target/ufo_c.h"
 
 #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
@@ -75,7 +78,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    size_t size = 10000;
+    size_t size = 100000;
     uint64_t *fib = fib_new(&ufo_system, size);
     if (fib == NULL) {
         exit(1);

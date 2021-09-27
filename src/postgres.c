@@ -258,9 +258,16 @@ int main(int argc, char **argv) {
 
     // Initialize the UFO system
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);    
+    if (ufo_core_is_error(&ufo_system)) {
+        exit(1);
+    }
 
     // Create a UFO object
     Player *players = Player_new(&ufo_system);
+    if (players == NULL) {
+        exit(2);
+    }
+
     size_t player_count = Player_count(&ufo_system, players);
 
     // Set up random sample;

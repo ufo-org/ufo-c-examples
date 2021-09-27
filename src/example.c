@@ -53,9 +53,16 @@ void Obj_free(UfoCore *ufo_system, Obj *ptr) {
 
 int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
+        if (ufo_core_is_error(&ufo_system)) {
+        exit(1);
+    }
+
     size_t size = HIGH_WATER_MARK * 2;
 
     Obj *objects = Obj_new(&ufo_system, size);
+    if (objects == NULL) {
+        exit(2);
+    }
     for (size_t i = 0; i < size; i++) {
         printf("%li -> %li\n", i, objects[i].id);
 

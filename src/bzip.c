@@ -1053,10 +1053,16 @@ void BZip2_free(UfoCore *ufo_system, BZip2 *object) {
 
 int main(int argc, char *argv[]) {
     // Create UFO system
-    UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
+    UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
+    if (ufo_core_is_error(&ufo_system)) {
+        exit(1);
+    }
 
     // Create UFO object
     BZip2 *object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
+    if (object == NULL) {
+        exit(2);
+    }
     
     // Iterate over everything.
     for (size_t i = 0; i < object->size; i++) {
@@ -1085,5 +1091,3 @@ int main(int argc, char *argv[]) {
 //         printf("%d: %s", output_buffer_occupancy, output_buffer);
 //     }
 // }
-
-// FIXME add is_error checks to all the examples...

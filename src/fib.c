@@ -71,8 +71,11 @@ void fib_free(UfoCore *ufo_system, uint64_t *ptr) {
 
 int main(int argc, char *argv[]) {
     UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
-    size_t size = 10000;
+    if (ufo_core_is_error(&ufo_system)) {
+        exit(1);
+    }
 
+    size_t size = 10000;
     uint64_t *fib = fib_new(&ufo_system, size);
     if (fib == NULL) {
         exit(1);

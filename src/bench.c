@@ -116,8 +116,49 @@ void ny_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     exit(99);
 }
 
+// Sequence iterators
+typedef void *AnySequence;
+typedef struct { size_t current; bool end; } SequenceResult;
+typedef SequenceResult (*sequence_t)(AnySequence);
+
+typedef struct { size_t current; size_t length; } ScanSequence;
+SequenceResult ScanSequence_next(AnySequence sequence) {
+    ScanSequence *scan_sequence = (ScanSequence *) sequence;
+    SequenceResult result;
+    result.end = scan_sequence->current < scan_sequence->length;
+    result.current = scan_sequence->current;
+    scan_sequence->current++;
+    return result;
+}
+
+typedef struct { size_t current; size_t length; } RandomSequence;
+SequenceResult RandomSequence_next(AnySequence sequence) {
+    printf("random_sequence_next not implemented!\n");
+    exit(42);
+}
+
 // EXECUTION
-// TODO
+typedef void (*execution_t)(Arguments *, AnySystem, AnyObject, AnySequence, sequence_t);
+void normil_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    uint64_t *data = (uint64_t *) object;
+    SequenceResult result = next(sequence);
+    uint64_t *sum = 0;
+    for (; !result.end; result = next(sequence)) {
+        sum += data[result.current];
+    }    
+}
+void ufo_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    uint64_t *data = (uint64_t *) object;
+    SequenceResult result = next(sequence);
+    uint64_t *sum = 0;
+    for (; !result.end; result = next(sequence)) {
+        sum += data[result.current];
+    }    
+}
+void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    printf("ny_fib_execution not implemented!\n");
+    exit(43); 
+}
 
 int main(int argc, char *argv[]) {
 
@@ -184,19 +225,23 @@ int main(int argc, char *argv[]) {
         return 4;
     }
 
-    // Object creation and teardown.
+    // Object creation, execution and teardown.
     object_creation_t object_creation = NULL;
+    execution_t execution = NULL;
     object_cleanup_t object_cleanup = NULL;
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
         object_creation = ufo_fib_creation;
+        execution = ufo_fib_execution;
         object_cleanup = ufo_fib_cleanup;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "ny") == 0)) {
         object_creation = ny_fib_creation;
+        execution = ny_fib_execution;
         object_cleanup = ny_fib_cleanup;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "normil") == 0)) {
         object_creation = normil_fib_creation;
+        execution = normil_fib_execution;
         object_cleanup = normil_fib_cleanup;
     }
     if (object_creation == NULL || object_cleanup == NULL) {
@@ -205,25 +250,51 @@ int main(int argc, char *argv[]) {
         return 4;
     }
 
+    // Sequence selection
+    // FIXME control selection length for different benchmarks
+    AnySequence sequence = NULL;
+    sequence_t next = NULL;
+    if (strcmp(config.pattern, "scan") == 0) {
+        ScanSequence scan_sequence;
+        scan_sequence.current = 0;
+        scan_sequence.length = config.size; // FIXME
+        sequence = (AnySequence) &scan_sequence;
+        next = &ScanSequence_next;
+    }
+    if (strcmp(config.pattern, "random") == 0) {
+        RandomSequence random_sequence;
+        random_sequence.current = 0;
+        random_sequence.length = config.size; // FIXME
+        sequence = (AnySequence) &random_sequence;
+        next = &RandomSequence_next;
+    }
+    if (sequence == NULL) {
+        printf("Unknown sequence pattern \"%s\"\n", config.pattern);
+        return 5;
+    }
+
     // System setup
     printf("System setup\n");
     long system_setup_start_time = current_time_in_ms();
-    void* system = system_setup(&config);
+    AnySystem system = system_setup(&config);
     long system_setup_elapsed_time = current_time_in_ms() - system_setup_start_time;
 
     // Object creation
     printf("Object creation\n");
     long object_creation_start_time = current_time_in_ms();
+    AnyObject object = object_creation(&config, system);
     long object_creation_elapsed_time = current_time_in_ms() - object_creation_start_time;
 
     // Execution
     printf("Execution\n");
     long execution_start_time = current_time_in_ms();
+    execution(&config, system, object, sequence, next);
     long execution_elapsed_time = current_time_in_ms() - execution_start_time;
 
     // Object cleanup
     printf("Object cleanup\n");
     long object_cleanup_start_time = current_time_in_ms();
+    object_cleanup(&config, system, object);
     long object_cleanup_elapsed_time = current_time_in_ms() - object_cleanup_start_time;
     
     // System teardown
@@ -231,6 +302,8 @@ int main(int argc, char *argv[]) {
     long system_teardown_start_time = current_time_in_ms();
     system_teardown(&config, system);
     long system_teardown_elapsed_time = current_time_in_ms() - system_teardown_start_time;
+
+    // Execution
 
     // Output (TODO: to CSV)
     printf("benchmark,"
@@ -249,48 +322,5 @@ int main(int argc, char *argv[]) {
         execution_elapsed_time,
         object_cleanup_elapsed_time,
         system_teardown_elapsed_time);
-        
-    // if (strcmp(config.benchmark, "seq") == 0) {
-        
-    // }
-    // if (system_setup == NULL) {
-    //     printf("ERROR: unknown benchmark: %s\n", );
-    //     exit(3);
-    // }
-
-    // if (strcmp(benchmark, "fib")) {
-        
-    // }
-
-    // if (strcmp(benchmark, "postgres")) {
-        
-    // }
-
-    // if (strcmp(benchmark, "bzip")) {
-        
-    // }
 
 }
-
-    // // Sytem setup
-    // UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
-    // if (ufo_core_is_error(&ufo_system)) {
-    //     exit(1);
-    // }
-
-    // // Object creation
-    // uint64_t *fib = CONSTRUCTOR(&ufo_system, config.size);
-    // if (fib == NULL) {
-    //     exit(1);
-    // }
-
-    // // Benchmark guts: some pattern of memory accesses
-    // for (size_t i = 0; i < size; i++) {
-    //     printf("%lu -> %lu\n", i, fib[i]);
-    // }
-
-    // // Object destruction
-    // fib_free(&ufo_system, fib);
-
-    // // System shutdown
-    // ufo_core_shutdown(ufo_system);

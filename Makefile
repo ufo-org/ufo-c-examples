@@ -1,7 +1,7 @@
 # You can set UFO_DEBUG=1 or UFO_DEBUG=0 in the environment to compile with or
 # without debug symbols (this affects both the C and the Rust code).
 
-SOURCES_C = src/example.c src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c
+SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c
 
 # -----------------------------------------------------------------------------
 
@@ -30,23 +30,23 @@ endif
 
 .PHONY: all ufo-c ufo-c-clean clean
 
-all: libs example postgres bzip fib bench
+all: libs postgres bzip fib bench
 
 OBJECTS = $(SOURCES_C:.c=.o)
 
 libs: ufo-c $(OBJECTS)
 
 example: libs
-	$(CC) $(CFLAGS) $(INCLUDES) -o example src/example.o $(LFLAGS) $(LIBS) 
+	$(CC) $(CFLAGS) $(INCLUDES) -o example $(LFLAGS) $(LIBS) src/example.c
 
 postgres: libs
-	$(CC) $(CFLAGS) $(INCLUDES) -o postgres src/postgres.o $(LFLAGS) $(LIBS) 
+	$(CC) $(CFLAGS) $(INCLUDES) -o postgres src/postgres.o $(LFLAGS) $(LIBS) src/postgres_example.c
 
 bzip: libs
-	$(CC) $(CFLAGS) $(INCLUDES) -o bzip src/bzip.o $(LFLAGS) $(LIBS) 
+	$(CC) $(CFLAGS) $(INCLUDES) -o bzip src/bzip.o $(LFLAGS) $(LIBS) src/bzip_example.c
 
 fib: libs
-	$(CC) $(CFLAGS) $(INCLUDES) -o fib src/fib.o $(LFLAGS) $(LIBS) 
+	$(CC) $(CFLAGS) $(INCLUDES) -o fib src/fib.o $(LFLAGS) $(LIBS) src/fib_example.c
 
 bench: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(LFLAGS) $(LIBS) 

@@ -72,24 +72,24 @@ void ufo_fib_free(UfoCore *ufo_system, uint64_t *ptr) {
     ufo_free(ufo_object);
 }
 
-int main(int argc, char *argv[]) {
-    UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
-    if (ufo_core_is_error(&ufo_system)) {
-        exit(1);
-    }
+// int main(int argc, char *argv[]) {
+//     UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
+//     if (ufo_core_is_error(&ufo_system)) {
+//         exit(1);
+//     }
 
-    size_t size = 100000;
-    uint64_t *fib = ufo_fib_new(&ufo_system, size);
-    if (fib == NULL) {
-        exit(1);
-    }
-    for (size_t i = 0; i < size; i++) {
-        printf("%lu -> %lu\n", i, fib[i]);
-    }
+//     size_t size = 100000;
+//     uint64_t *fib = ufo_fib_new(&ufo_system, size);
+//     if (fib == NULL) {
+//         exit(1);
+//     }
+//     for (size_t i = 0; i < size; i++) {
+//         printf("%lu -> %lu\n", i, fib[i]);
+//     }
 
-    ufo_fib_free(&ufo_system, fib);
-    ufo_core_shutdown(ufo_system);
-}
+//     ufo_fib_free(&ufo_system, fib);
+//     ufo_core_shutdown(ufo_system);
+// }
 
 
 uint64_t *normil_fib_new(size_t n) {

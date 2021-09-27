@@ -1046,29 +1046,29 @@ void BZip2_free(UfoCore *ufo_system, BZip2 *object) {
     free(object);
 }
 
-int main(int argc, char *argv[]) {
-    // Create UFO system
-    UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
-    if (ufo_core_is_error(&ufo_system)) {
-        exit(1);
-    }
+// int main(int argc, char *argv[]) {
+//     // Create UFO system
+//     UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
+//     if (ufo_core_is_error(&ufo_system)) {
+//         exit(1);
+//     }
 
-    // Create UFO object
-    BZip2 *object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
-    if (object == NULL) {
-        exit(2);
-    }
+//     // Create UFO object
+//     BZip2 *object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
+//     if (object == NULL) {
+//         exit(2);
+//     }
     
-    // Iterate over everything.
-    for (size_t i = 0; i < object->size; i++) {
-        printf("%c", object->data[i]);
-    }
-    printf("\n");
+//     // Iterate over everything.
+//     for (size_t i = 0; i < object->size; i++) {
+//         printf("%c", object->data[i]);
+//     }
+//     printf("\n");
 
-    // Cleanup
-    BZip2_free(&ufo_system, object);
-    ufo_core_shutdown(ufo_system);
-}
+//     // Cleanup
+//     BZip2_free(&ufo_system, object);
+//     ufo_core_shutdown(ufo_system);
+// }
 
 // int main(int argc, char *argv[]) {
 //     // Find all the blocks in the input file

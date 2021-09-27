@@ -49,7 +49,7 @@ fib: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o fib src/fib.o $(LFLAGS) $(LIBS) 
 
 bench: libs
-	$(CC) $(CFLAGS) $(INCLUDES) -o bench src/bench.o $(LFLAGS) $(LIBS) 
+	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(LFLAGS) $(LIBS) 
 
 clean: ufo-c-clean
 	$(RM) src/*.o *~ $(MAIN)

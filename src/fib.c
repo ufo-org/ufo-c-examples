@@ -14,7 +14,7 @@ typedef struct {
     uint64_t *self;
 } Fib;
 
-static int32_t fib_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target_bytes) {
+int32_t fib_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target_bytes) {
     Fib *data = (Fib *) user_data;
     uint64_t *target = (uint64_t *) target_bytes;
 
@@ -29,7 +29,7 @@ static int32_t fib_populate(void* user_data, uintptr_t start, uintptr_t end, uns
     return 0;
 }
 
-uint64_t *fib_new(UfoCore *ufo_system, size_t n) {
+uint64_t *ufo_fib_new(UfoCore *ufo_system, size_t n) {
 
     Fib *data = (Fib *) malloc(sizeof(Fib));
     data->self = NULL;
@@ -55,7 +55,7 @@ uint64_t *fib_new(UfoCore *ufo_system, size_t n) {
     return pointer;
 }
 
-void fib_free(UfoCore *ufo_system, uint64_t *ptr) {
+void ufo_fib_free(UfoCore *ufo_system, uint64_t *ptr) {
     UfoObj ufo_object = ufo_get_by_address(ufo_system, ptr);
     if (ufo_is_error(&ufo_object)) {
         fprintf(stderr, "Cannot free %p: not a UFO object.\n", ptr);
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     }
 
     size_t size = 100000;
-    uint64_t *fib = fib_new(&ufo_system, size);
+    uint64_t *fib = ufo_fib_new(&ufo_system, size);
     if (fib == NULL) {
         exit(1);
     }
@@ -87,6 +87,24 @@ int main(int argc, char *argv[]) {
         printf("%lu -> %lu\n", i, fib[i]);
     }
 
-    fib_free(&ufo_system, fib);
+    ufo_fib_free(&ufo_system, fib);
     ufo_core_shutdown(ufo_system);
+}
+
+
+uint64_t *normil_fib_new(size_t n) {
+    uint64_t *target = (uint64_t *) malloc(sizeof(uint64_t) * n);
+
+    target[0] = 1;
+    target[1] = 1;
+
+    for (size_t i = 2; i < n; i++) {
+        target[i] = target[i - 1] + target[i - 2];
+    }
+    
+    return target;
+}
+
+void normil_fib_free(uint64_t * ptr) {
+    free(ptr);
 }

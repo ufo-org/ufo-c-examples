@@ -17,6 +17,17 @@
 #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
 #define MIN_LOAD_COUNT  (4L * 1024)
 
+int random_int(int ceiling) {
+    return rand() % ceiling;
+}
+
+size_t random_index(size_t ceiling) {
+    size_t high = (size_t) rand();
+    size_t low  = (size_t) rand();
+    size_t big = (high << 32) | low;
+    return big % ceiling;
+}
+
 typedef struct {
     char *benchmark;
     char *implementation;
@@ -27,7 +38,9 @@ typedef struct {
     size_t sample_size;
     size_t min_load;
     size_t high_water_mark;
-    size_t low_water_mark;    
+    size_t low_water_mark; 
+    size_t writes;
+    unsigned int seed;
 } Arguments;
 
 static error_t parse_opt (int key, char *value, struct argp_state *state) {
@@ -45,6 +58,8 @@ static error_t parse_opt (int key, char *value, struct argp_state *state) {
         case 't': arguments->timing = value; break;
         case 'p': arguments->pattern = value; break;
         case 'n': arguments->sample_size = (size_t) atol(value); break;
+        case 'w': arguments->writes = (size_t) atol(value); break;
+        case 'S': arguments->seed = (unsigned int) atoi(value); break;
         default:  return ARGP_ERR_UNKNOWN;
     }
     return 0;
@@ -118,42 +133,92 @@ void ny_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
 
 // Sequence iterators
 typedef void *AnySequence;
-typedef struct { size_t current; bool end; } SequenceResult;
-typedef SequenceResult (*sequence_t)(AnySequence);
+typedef struct { size_t current; bool end; bool write; } SequenceResult;
+typedef SequenceResult (*sequence_t)(Arguments *, AnySequence);
 
-typedef struct { size_t current; size_t length; } ScanSequence;
-SequenceResult ScanSequence_next(AnySequence sequence) {
+typedef struct { 
+    size_t current; 
+    size_t length; 
+    size_t since_last_write; 
+} ScanSequence;
+SequenceResult ScanSequence_next(Arguments *config, AnySequence sequence) {
     ScanSequence *scan_sequence = (ScanSequence *) sequence;
     SequenceResult result;
-    result.end = scan_sequence->current < scan_sequence->length;
+    result.end = !(scan_sequence->current < scan_sequence->length);
     result.current = scan_sequence->current;
+    result.write = false;
+    scan_sequence->since_last_write--;
+    if (scan_sequence->since_last_write == 0) {
+        result.write = true;
+        scan_sequence->since_last_write = config->writes;
+    }
     scan_sequence->current++;
     return result;
 }
 
-typedef struct { size_t current; size_t length; } RandomSequence;
-SequenceResult RandomSequence_next(AnySequence sequence) {
-    printf("random_sequence_next not implemented!\n");
-    exit(42);
+typedef struct { 
+    size_t generated; 
+    size_t length;
+    size_t max_length;
+    size_t since_last_write; 
+} RandomSequence;
+SequenceResult RandomSequence_next(Arguments *config, AnySequence sequence) {
+    RandomSequence *random_sequence = (RandomSequence *) sequence;
+    SequenceResult result;
+    result.end = !(random_sequence->generated < random_sequence->length);
+    result.current = random_index(random_sequence->max_length);
+    result.write = false;
+    random_sequence->since_last_write--;
+    if (random_sequence->since_last_write == 0) {
+        result.write = true;
+        random_sequence->since_last_write = config->writes;
+    }
+    random_sequence->generated++;
+    return result;
+}
+
+// MAX LENGTHS
+typedef size_t (*max_length_t)(Arguments *config, AnySystem, AnyObject);
+size_t fib_max_length(Arguments *config, AnySystem system, AnyObject object) {
+    return config->size;
 }
 
 // EXECUTION
 typedef void (*execution_t)(Arguments *, AnySystem, AnyObject, AnySequence, sequence_t);
 void normil_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
-    uint64_t *data = (uint64_t *) object;
-    SequenceResult result = next(sequence);
+    uint64_t *data = (uint64_t *) object;    
     uint64_t *sum = 0;
-    for (; !result.end; result = next(sequence)) {
-        sum += data[result.current];
-    }    
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);        
+        if (result.end) {
+            printf("  * end at index %lu\n", result.current);
+            break;
+        }        
+        printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
+        if (result.write) {
+            data[result.current] = random_int(1000);
+        } else {
+            sum += data[result.current];
+        }
+    };
 }
 void ufo_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     uint64_t *data = (uint64_t *) object;
-    SequenceResult result = next(sequence);
     uint64_t *sum = 0;
-    for (; !result.end; result = next(sequence)) {
-        sum += data[result.current];
-    }    
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);
+        if (result.end) {
+            break;
+        }
+        printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
+        if (result.write) {
+            data[result.current] = random_int(1000);
+        } else {
+            sum += data[result.current];
+        }
+    };
 }
 void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     printf("ny_fib_execution not implemented!\n");
@@ -174,6 +239,8 @@ int main(int argc, char *argv[]) {
     config.timing = "timing.csv";
     config.pattern = "scan";
     config.sample_size = 0; // 0 for all
+    config.writes = 0; // 0 for none
+    config.seed = 42;
 
     // Parse arguments
     static char doc[] = "UFO performance benchmark utility.";
@@ -183,12 +250,14 @@ int main(int argc, char *argv[]) {
         {"implementation",  'i', "IMPL",           0,  "Implementation to run: ufo , ny, normil"},
         {"pattern",         'p', "FILE",           0,  "Read pattern: scan, random"},
         {"sample-size",     'n', "FILE",           0,  "How many elements to read from vector: zero for all"},
+        {"writes",          'w', "N%%",            0,  "One write will occur once for every N%% reads, zero for read-only"},
         {"size",            's', "#B",             0,  "Vector size (applicable for fib and seq)"},        
         {"file",            'f', "FILE",           0,  "Input file (applicable for bzip)"},
         {"min-load",        'm', "#B",             0,  "Min load count for ufo"},
         {"high-water-mark", 'h', "#B",             0,  "High water mark for ufo GC"},
         {"low-water-mark",  'l', "#B",             0,  "Low water mark for ufo GC"},
         {"timing",          't', "FILE",           0,  "Path of CSV output file for time measurements"},        
+        {"seed",            'S', "N",              0,  "Random seed, default: 42"},
         { 0 }
     };
     static struct argp argp = { options, parse_opt, args_doc, doc };   
@@ -198,14 +267,22 @@ int main(int argc, char *argv[]) {
     printf("Benchmark configuration:\n");
     printf("  * benchmark:       %s\n",  config.benchmark      );
     printf("  * implementation:  %s\n",  config.implementation );
+    printf("  * pattern:         %s\n",  config.pattern        );
     printf("  * size:            %lu\n", config.size           );
     printf("  * min_load:        %lu\n", config.min_load       );
     printf("  * high_water_mark: %lu\n", config.high_water_mark);
     printf("  * low_water_mark:  %lu\n", config.low_water_mark );
     printf("  * file:            %s\n",  config.file           );
     printf("  * timing:          %s\n",  config.timing         );
+    printf("  * writes:          %lu\n", config.writes         );
+    printf("  * sample_size:     %lu\n", config.sample_size    );
+    printf("  * seed:            %u\n",  config.seed           );
+
+    // Random seed
+    srand(config.seed);
 
     // Setup and teardown;
+    printf("System configuration\n");
     system_setup_t system_setup = NULL;
     system_teardown_t system_teardown = NULL;
     if (strcmp(config.implementation, "ufo") == 0) {
@@ -226,51 +303,33 @@ int main(int argc, char *argv[]) {
     }
 
     // Object creation, execution and teardown.
+    printf("Object configuration\n");
     object_creation_t object_creation = NULL;
     execution_t execution = NULL;
     object_cleanup_t object_cleanup = NULL;
+    max_length_t max_length = NULL;
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
         object_creation = ufo_fib_creation;
         execution = ufo_fib_execution;
         object_cleanup = ufo_fib_cleanup;
+        max_length = fib_max_length;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "ny") == 0)) {
         object_creation = ny_fib_creation;
         execution = ny_fib_execution;
         object_cleanup = ny_fib_cleanup;
+        max_length = fib_max_length;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "normil") == 0)) {
         object_creation = normil_fib_creation;
         execution = normil_fib_execution;
         object_cleanup = normil_fib_cleanup;
+        max_length = fib_max_length;
     }
     if (object_creation == NULL || object_cleanup == NULL) {
         printf("Unknown benchmark/implementation combination \"%s\"/\"%s\"\n", 
         config.benchmark, config.implementation);
         return 4;
-    }
-
-    // Sequence selection
-    // FIXME control selection length for different benchmarks
-    AnySequence sequence = NULL;
-    sequence_t next = NULL;
-    if (strcmp(config.pattern, "scan") == 0) {
-        ScanSequence scan_sequence;
-        scan_sequence.current = 0;
-        scan_sequence.length = config.size; // FIXME
-        sequence = (AnySequence) &scan_sequence;
-        next = &ScanSequence_next;
-    }
-    if (strcmp(config.pattern, "random") == 0) {
-        RandomSequence random_sequence;
-        random_sequence.current = 0;
-        random_sequence.length = config.size; // FIXME
-        sequence = (AnySequence) &random_sequence;
-        next = &RandomSequence_next;
-    }
-    if (sequence == NULL) {
-        printf("Unknown sequence pattern \"%s\"\n", config.pattern);
-        return 5;
     }
 
     // System setup
@@ -284,6 +343,34 @@ int main(int argc, char *argv[]) {
     long object_creation_start_time = current_time_in_ms();
     AnyObject object = object_creation(&config, system);
     long object_creation_elapsed_time = current_time_in_ms() - object_creation_start_time;
+
+    // Detour: sequence selection    
+    printf("Index sequence configuration\n");
+    AnySequence sequence = NULL;
+    sequence_t next = NULL;
+    size_t max_sequence_length = max_length(&config, system, object);
+    size_t sequence_length = 
+        (config.sample_size != 0 && max_sequence_length > config.sample_size) 
+        ? config.sample_size : max_sequence_length;
+    if (strcmp(config.pattern, "scan") == 0) {
+        ScanSequence *scan_sequence = malloc(sizeof(ScanSequence));
+        scan_sequence->current = 0;
+        scan_sequence->length = sequence_length;
+        sequence = (AnySequence) scan_sequence;
+        next = &ScanSequence_next;
+    }
+    if (strcmp(config.pattern, "random") == 0) {
+        RandomSequence *random_sequence = malloc(sizeof(RandomSequence));
+        random_sequence->generated = 0;
+        random_sequence->length = sequence_length;
+        random_sequence->max_length = max_sequence_length;
+        sequence = (AnySequence) random_sequence;
+        next = &RandomSequence_next;
+    }
+    if (sequence == NULL) {
+        printf("Unknown sequence pattern \"%s\"\n", config.pattern);
+        return 5;
+    }
 
     // Execution
     printf("Execution\n");
@@ -302,8 +389,6 @@ int main(int argc, char *argv[]) {
     long system_teardown_start_time = current_time_in_ms();
     system_teardown(&config, system);
     long system_teardown_elapsed_time = current_time_in_ms() - system_teardown_start_time;
-
-    // Execution
 
     // Output (TODO: to CSV)
     printf("benchmark,"

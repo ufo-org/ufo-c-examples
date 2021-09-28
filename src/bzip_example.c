@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Create UFO object
-    BZip2 *object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
+    BZip2 *object = BZip2_ufo_new(&ufo_system, "test/test2.txt.bz2", true);
     if (object == NULL) {
         exit(2);
     }
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
     printf("\n");
 
     // Cleanup
-    BZip2_free(&ufo_system, object);
+    BZip2_ufo_free(&ufo_system, object);
     ufo_core_shutdown(ufo_system);
 }
 

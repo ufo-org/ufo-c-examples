@@ -10,6 +10,7 @@
 #include "timing.h"
 
 #include "fib.h"
+#include "bzip.h"
 
 #define GB (1024L * 1024L * 1024L)
 #define MB (1024L * 1024L)
@@ -57,11 +58,12 @@ static error_t parse_opt (int key, char *value, struct argp_state *state) {
     switch (key) {
         case 'b': arguments->benchmark = value; break;
         case 'i': arguments->implementation = value; break;
+        case 'f': arguments->file = value; break;
         case 's': arguments->size = (size_t) atol(value); break;
         case 'm': arguments->min_load = (size_t) atol(value); break;
         case 'h': arguments->high_water_mark = (size_t) atol(value); break;
         case 'l': arguments->low_water_mark = (size_t) atol(value); break;
-        case 'o': arguments->file = value; break;
+        // case 'o': arguments->file = value; break;
         case 't': arguments->timing = value; break;
         case 'p': arguments->pattern = value; break;
         case 'n': arguments->sample_size = (size_t) atol(value); break;
@@ -112,20 +114,37 @@ void ny_teardown(Arguments *config, AnySystem system) {
 
 // OBJECT CREATION
 typedef void *(*object_creation_t)(Arguments *, AnySystem);
+
+// Fibonacci
 void *normil_fib_creation(Arguments *config, AnySystem system) {
     return (void *) normil_fib_new(config->size);
 }
 void *ufo_fib_creation(Arguments *config, AnySystem system) {
     UfoCore *ufo_system_ptr = (UfoCore *) system;
-    return (void *) ufo_fib_new(ufo_system_ptr, config->size);
+    return (void *) ufo_fib_new(ufo_system_ptr, config->size, config->writes == 0);
 }
 void *ny_fib_creation(Arguments *config, AnySystem system) {
     printf("ny_fib_creation unimplemented!\n");
     exit(99);
 }
 
+// BZip
+void *normil_bzip_creation(Arguments *config, AnySystem system) {
+    return (void *) BZip2_normil_new(config->file);
+}
+void *ufo_bzip_creation(Arguments *config, AnySystem system) {
+    UfoCore *ufo_system_ptr = (UfoCore *) system;
+    return (void *) BZip2_ufo_new(ufo_system_ptr, config->file, config->writes == 0);
+}
+void *ny_bzip_creation(Arguments *config, AnySystem system) {
+    printf("ny_bzip_creation unimplemented!\n");
+    exit(99);
+}
+
 // OBJECT CLEANUP
 typedef void (*object_cleanup_t)(Arguments *, AnySystem, AnyObject);
+
+// Fibonacci
 void normil_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     normil_fib_free(object);
 }
@@ -135,6 +154,19 @@ void ufo_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
 }
 void ny_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     printf("ny_fib_cleanup unimplemented!\n");
+    exit(99);
+}
+
+// BZip
+void normil_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    BZip2_normil_free(object);
+}
+void ufo_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    UfoCore *ufo_system_ptr = (UfoCore *) system;
+    BZip2_ufo_free(ufo_system_ptr, object);
+}
+void ny_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    printf("ny_bzip_cleanup unimplemented!\n");
     exit(99);
 }
 
@@ -191,9 +223,15 @@ typedef size_t (*max_length_t)(Arguments *config, AnySystem, AnyObject);
 size_t fib_max_length(Arguments *config, AnySystem system, AnyObject object) {
     return config->size;
 }
+size_t bzip_max_length(Arguments *config, AnySystem system, AnyObject object) {
+    BZip2 *bzip2 = (BZip2 *) object;
+    return bzip2->size;
+}
 
 // EXECUTION
 typedef void (*execution_t)(Arguments *, AnySystem, AnyObject, AnySequence, sequence_t);
+
+// Fibonacci
 void normil_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     uint64_t *data = (uint64_t *) object;    
     uint64_t *sum = 0;
@@ -204,7 +242,7 @@ void normil_fib_execution(Arguments *config, AnySystem system, AnyObject object,
             printf("  * end at index %lu\n", result.current);
             break;
         }        
-        printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
+        // printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
         if (result.write) {
             data[result.current] = random_int(1000);
         } else {
@@ -221,7 +259,7 @@ void ufo_fib_execution(Arguments *config, AnySystem system, AnyObject object, An
         if (result.end) {
             break;
         }
-        printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
+        // printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
         if (result.write) {
             data[result.current] = random_int(1000);
         } else {
@@ -233,6 +271,49 @@ void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, Any
     printf("ny_fib_execution not implemented!\n");
     exit(43); 
 }
+
+// BZip2
+void normil_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    uint64_t *data = (uint64_t *) object;    
+    uint64_t *sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);        
+        if (result.end) {
+            printf("  * end at index %lu\n", result.current);
+            break;
+        }        
+        // printf("  * %s bzip[%lu]\n", result.write ? "write to" : "read from", result.current);
+        if (result.write) {
+            data[result.current] = random_int(126 - 32) + 32;
+        } else {
+            sum += data[result.current];
+        }
+    };
+}
+void ufo_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    uint64_t *data = (uint64_t *) object;
+    uint64_t *sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);
+        if (result.end) {
+            break;
+        }
+        // printf("  * %s bzip[%lu]\n", result.write ? "write to" : "read from", result.current);
+        if (result.write) {
+            data[result.current] = random_int(126 - 32) + 32;
+        } else {
+            sum += data[result.current];
+        }
+    };
+}
+void ny_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    printf("ny_bzip_execution not implemented!\n");
+    exit(43); 
+}
+
+// MAIN
 
 int main(int argc, char *argv[]) {
 
@@ -335,6 +416,24 @@ int main(int argc, char *argv[]) {
         object_cleanup = normil_fib_cleanup;
         max_length = fib_max_length;
     }
+        if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
+        object_creation = ufo_bzip_creation;
+        execution = ufo_bzip_execution;
+        object_cleanup = ufo_bzip_cleanup;
+        max_length = bzip_max_length;
+    }
+    if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+        object_creation = ny_bzip_creation;
+        execution = ny_bzip_execution;
+        object_cleanup = ny_bzip_cleanup;
+        max_length = bzip_max_length;
+    }
+    if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "normil") == 0)) {
+        object_creation = normil_bzip_creation;
+        execution = normil_bzip_execution;
+        object_cleanup = normil_bzip_cleanup;
+        max_length = bzip_max_length;
+    }
     if (object_creation == NULL || object_cleanup == NULL) {
         printf("Unknown benchmark/implementation combination \"%s\"/\"%s\"\n", 
         config.benchmark, config.implementation);
@@ -409,7 +508,9 @@ int main(int argc, char *argv[]) {
                 "benchmark,"
                "implementation,"
                "pattern,"
+               "min_load_count,"
                "size,"
+               "writes,"
                "system_setup_time,"
                "object_creation_time,"
                "execution_time,"
@@ -420,11 +521,13 @@ int main(int argc, char *argv[]) {
     }
 
     fprintf(output_stream,
-        "%s,%s,%s,%lu,%lu,%lu,%lu,%lu,%lu\n",
+        "%s,%s,%s,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu\n",
         config.benchmark,
         config.implementation,
         config.pattern,
+        config.min_load,
         sequence_length,
+        config.writes,
         system_setup_elapsed_time,
         object_creation_elapsed_time,
         execution_elapsed_time,

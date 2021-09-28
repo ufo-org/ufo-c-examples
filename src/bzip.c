@@ -10,7 +10,9 @@
 #include "bzip.h"
 #include "ufo_c/target/ufo_c.h"
 
-#define DEBUG
+#include <bzlib.h>
+
+//#define DEBUG
 #ifdef DEBUG 
 #define LOG(...) fprintf(stderr, "DEBUG: " __VA_ARGS__)
 #define LOG_SHORT(...) fprintf(stderr,  __VA_ARGS__)
@@ -24,8 +26,6 @@
 #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
 #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
 #define MIN_LOAD_COUNT  (900L * 1024) // around block size, so around 900kB
-
-#include <bzlib.h>
 
 // The bzip code was adapted from bzip2recovery.
 
@@ -982,13 +982,14 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     return 0;
 }
 
-BZip2 *BZip2_new(UfoCore *ufo_system, char *filename) {
+BZip2 *BZip2_ufo_new(UfoCore *ufo_system, char *filename, bool read_only) {
     
     Blocks *blocks = Blocks_new(filename);
     
-    // TODO check for bad blocks
+    // Check for bad blocks
     if (blocks->bad_blocks > 0) {
         REPORT("UFO some blocks could not be read. Quitting.\n");
+        Blocks_free(blocks);
         return NULL;
     }
 
@@ -997,7 +998,7 @@ BZip2 *BZip2_new(UfoCore *ufo_system, char *filename) {
     parameters.element_size = strideOf(char);
     parameters.element_ct = blocks->decompressed_size;
     parameters.min_load_ct = MIN_LOAD_COUNT;
-    parameters.read_only = true;
+    parameters.read_only = read_only;
     parameters.populate_data = blocks;
     parameters.populate_fn = BZip2_populate;
 
@@ -1017,7 +1018,7 @@ BZip2 *BZip2_new(UfoCore *ufo_system, char *filename) {
     return object;
 }
 
-void BZip2_free(UfoCore *ufo_system, BZip2 *object) {
+void BZip2_ufo_free(UfoCore *ufo_system, BZip2 *object) {
     // Grab UFO object for this address.
     UfoObj ufo_object = ufo_get_by_address(ufo_system, object->data);
     if (ufo_is_error(&ufo_object)) {
@@ -1046,43 +1047,80 @@ void BZip2_free(UfoCore *ufo_system, BZip2 *object) {
     free(object);
 }
 
-// int main(int argc, char *argv[]) {
-//     // Create UFO system
-//     UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
-//     if (ufo_core_is_error(&ufo_system)) {
-//         exit(1);
-//     }
+BZip2 *BZip2_normil_new(char *filename) {
+    FILE *stream = fopen(filename, "r");
+    if (!stream) {
+        REPORT("Cannot read file \"%s\"\n", filename);
+        return NULL;
+    }
 
-//     // Create UFO object
-//     BZip2 *object = BZip2_new(&ufo_system, "test/test2.txt.bz2");
-//     if (object == NULL) {
-//         exit(2);
-//     }
+    int error;
+    BZFILE *bzip2_stream = BZ2_bzReadOpen(&error, stream, 0, 1, NULL, 0);
+    if (error != BZ_OK) {
+        BZ2_bzReadClose (&error, bzip2_stream);
+        REPORT("Cannot process file \"%s\"\n", filename);
+        return NULL;
+    }
+
+    size_t buffer_size = 2UL * 1000 * 1000 * 1000;
+    char *buffer = (char *) malloc(sizeof(char) * buffer_size);
+    size_t buffer_occupancy = 0;
+
+    error = BZ_OK;
+    while (error == BZ_OK) {
+        printf("< %i", (int) (buffer_size - buffer_occupancy));
+        int read_bytes = BZ2_bzRead(&error, bzip2_stream, (void *)(buffer + buffer_occupancy), (int) (buffer_size - buffer_occupancy));
+        printf("> %i %i %i\n", read_bytes, error, error == BZ_OK);
+        buffer_occupancy += read_bytes;
+    }
+
+    if (error != BZ_STREAM_END) {
+        // BZ2_bzerror(bzip2_stream, &error);
+        REPORT("Could not decompress file \"%s\"\n", filename);
+        free(buffer);
+        BZ2_bzReadClose(&error, bzip2_stream);
+        return NULL;
+    } 
+
+    BZ2_bzReadClose(&error, bzip2_stream);
+
+    char *data = (char *) realloc(buffer, buffer_occupancy);
+    if (data == NULL) {
+        REPORT("Could not compactify buffer from size %lu to size %lu\n", buffer_size, buffer_occupancy);
+        free(buffer);
+        return NULL;
+    }
     
-//     // Iterate over everything.
-//     for (size_t i = 0; i < object->size; i++) {
-//         printf("%c", object->data[i]);
-//     }
-//     printf("\n");
+    BZip2 *bzip = malloc(sizeof(BZip2));
+    bzip->data = data;
+    bzip->size = buffer_occupancy;
+    return bzip;
+}
 
-//     // Cleanup
-//     BZip2_free(&ufo_system, object);
-//     ufo_core_shutdown(ufo_system);
-// }
+BZip2 *__BZip2_normil_new(char *filename) {
+    Blocks *blocks = Blocks_new(filename);
+    
+    if (blocks->bad_blocks > 0) {
+        REPORT("UFO some blocks could not be read. Quitting.\n");
+        Blocks_free(blocks);
+        return NULL;
+    }
 
-// int main(int argc, char *argv[]) {
-//     // Find all the blocks in the input file
-//     Blocks *blocks = Blocks_parse("test/test2.txt.bz2");
+    unsigned char *data = (unsigned char *) malloc(sizeof(unsigned char) * blocks->decompressed_size);
+    int result = BZip2_populate(blocks, 0, blocks->decompressed_size, data);
+    if (result != 0){
+        REPORT("UFO could not decompress data. Quitting.\n");
+        free(data);
+        return NULL;
+    }
 
-//     for (size_t i = 0; i < blocks->blocks; i++) {
-//         // Extract a single compressed block
-//         Block *block = Block_from(blocks, i);
+    BZip2 *bzip = malloc(sizeof(BZip2));
+    bzip->data = (char *) data;
+    bzip->size = blocks->decompressed_size;
+    return bzip;
+}
 
-//         // Create the structures for outputting the decompressed data into
-//         size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
-//         char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
-
-//         int output_buffer_occupancy = Block_decompress(block, output_buffer_size, output_buffer);
-//         printf("%d: %s", output_buffer_occupancy, output_buffer);
-//     }
-// }
+void BZip2_normil_free(BZip2 *object) {
+    free(object->data);
+    free(object);
+}

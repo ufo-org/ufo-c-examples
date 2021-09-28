@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     }
 
     size_t size = 100000;
-    uint64_t *fib = ufo_fib_new(&ufo_system, size);
+    uint64_t *fib = ufo_fib_new(&ufo_system, size, true);
     if (fib == NULL) {
         exit(1);
     }

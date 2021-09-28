@@ -9,5 +9,8 @@ typedef struct {
     char *data;
 } BZip2;
 
-BZip2 *BZip2_new(UfoCore *ufo_system, char *filename);
-void BZip2_free(UfoCore *ufo_system, BZip2 *object);
+BZip2 *BZip2_ufo_new(UfoCore *ufo_system, char *filename, bool read_only);
+void BZip2_ufo_free(UfoCore *ufo_system, BZip2 *object);
+
+BZip2 *BZip2_normil_new(char *filename);
+void BZip2_normil_free(BZip2 *object);

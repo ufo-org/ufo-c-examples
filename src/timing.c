@@ -1,8 +1,9 @@
 #include <time.h>
+#include <stdint.h>
 #include "timing.h"
 
-long current_time_in_ms() {
+uint64_t current_time_in_ns() {
     struct timespec measurement;
     clock_gettime(CLOCK_MONOTONIC_RAW, &measurement);
-    return (long) measurement.tv_sec * 1000 + (long) measurement.tv_nsec / 1000000;
+    return ((uint64_t) measurement.tv_sec) * 1000000000 + (uint64_t) measurement.tv_nsec;
 }

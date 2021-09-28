@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <argp.h>
+#include <sys/stat.h>
+#include <locale.h>
 
 #include "ufo_c/target/ufo_c.h"
 #include "timing.h"
@@ -16,6 +18,11 @@
 #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
 #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
 #define MIN_LOAD_COUNT  (4L * 1024)
+
+bool file_exists (char *filename) {
+  struct stat   buffer;   
+  return (stat (filename, &buffer) == 0);
+}
 
 int random_int(int ceiling) {
     return rand() % ceiling;
@@ -146,11 +153,12 @@ SequenceResult ScanSequence_next(Arguments *config, AnySequence sequence) {
     SequenceResult result;
     result.end = !(scan_sequence->current < scan_sequence->length);
     result.current = scan_sequence->current;
-    result.write = false;
-    scan_sequence->since_last_write--;
-    if (scan_sequence->since_last_write == 0) {
+    if (scan_sequence->since_last_write == 1) {
         result.write = true;
         scan_sequence->since_last_write = config->writes;
+    } else {
+        result.write = false;
+        scan_sequence->since_last_write--;
     }
     scan_sequence->current++;
     return result;
@@ -167,11 +175,12 @@ SequenceResult RandomSequence_next(Arguments *config, AnySequence sequence) {
     SequenceResult result;
     result.end = !(random_sequence->generated < random_sequence->length);
     result.current = random_index(random_sequence->max_length);
-    result.write = false;
-    random_sequence->since_last_write--;
-    if (random_sequence->since_last_write == 0) {
+    if (random_sequence->since_last_write == 1) {
         result.write = true;
         random_sequence->since_last_write = config->writes;
+    } else {
+        result.write = false;
+        random_sequence->since_last_write--;
     }
     random_sequence->generated++;
     return result;
@@ -334,15 +343,15 @@ int main(int argc, char *argv[]) {
 
     // System setup
     printf("System setup\n");
-    long system_setup_start_time = current_time_in_ms();
+    uint64_t system_setup_start_time = current_time_in_ns();
     AnySystem system = system_setup(&config);
-    long system_setup_elapsed_time = current_time_in_ms() - system_setup_start_time;
+    uint64_t system_setup_elapsed_time = current_time_in_ns() - system_setup_start_time;
 
     // Object creation
     printf("Object creation\n");
-    long object_creation_start_time = current_time_in_ms();
+    uint64_t object_creation_start_time = current_time_in_ns();
     AnyObject object = object_creation(&config, system);
-    long object_creation_elapsed_time = current_time_in_ms() - object_creation_start_time;
+    uint64_t object_creation_elapsed_time = current_time_in_ns() - object_creation_start_time;
 
     // Detour: sequence selection    
     printf("Index sequence configuration\n");
@@ -356,6 +365,7 @@ int main(int argc, char *argv[]) {
         ScanSequence *scan_sequence = malloc(sizeof(ScanSequence));
         scan_sequence->current = 0;
         scan_sequence->length = sequence_length;
+        scan_sequence->since_last_write = config.writes;
         sequence = (AnySequence) scan_sequence;
         next = &ScanSequence_next;
     }
@@ -364,6 +374,7 @@ int main(int argc, char *argv[]) {
         random_sequence->generated = 0;
         random_sequence->length = sequence_length;
         random_sequence->max_length = max_sequence_length;
+        random_sequence->since_last_write = config.writes;
         sequence = (AnySequence) random_sequence;
         next = &RandomSequence_next;
     }
@@ -374,38 +385,60 @@ int main(int argc, char *argv[]) {
 
     // Execution
     printf("Execution\n");
-    long execution_start_time = current_time_in_ms();
+    uint64_t execution_start_time = current_time_in_ns();
     execution(&config, system, object, sequence, next);
-    long execution_elapsed_time = current_time_in_ms() - execution_start_time;
+    uint64_t execution_elapsed_time = current_time_in_ns() - execution_start_time;
 
     // Object cleanup
     printf("Object cleanup\n");
-    long object_cleanup_start_time = current_time_in_ms();
+    uint64_t object_cleanup_start_time = current_time_in_ns();
     object_cleanup(&config, system, object);
-    long object_cleanup_elapsed_time = current_time_in_ms() - object_cleanup_start_time;
+    uint64_t object_cleanup_elapsed_time = current_time_in_ns() - object_cleanup_start_time;
     
     // System teardown
     printf("System teardown\n");
-    long system_teardown_start_time = current_time_in_ms();
+    uint64_t system_teardown_start_time = current_time_in_ns();
     system_teardown(&config, system);
-    long system_teardown_elapsed_time = current_time_in_ms() - system_teardown_start_time;
+    uint64_t system_teardown_elapsed_time = current_time_in_ns() - system_teardown_start_time;
 
     // Output (TODO: to CSV)
-    printf("benchmark,"
-           "implementation,"
-           "system_setup_time,"
-           "object_creation_time,"
-           "execution_time,"
-           "object_cleanup_time,"
-           "system_teardown_time\n");
+    FILE *output_stream;
+    if (!file_exists(config.timing)) {
+        output_stream = fopen(config.timing, "w");
+        fprintf(output_stream, 
+                "benchmark,"
+               "implementation,"
+               "pattern,"
+               "size,"
+               "system_setup_time,"
+               "object_creation_time,"
+               "execution_time,"
+               "object_cleanup_time,"
+               "system_teardown_time\n");
+    } else {
+        output_stream = fopen(config.timing, "a");
+    }
 
-    printf("%s,%s,%lu,%lu,%lu,%lu,%lu\n",
+    fprintf(output_stream,
+        "%s,%s,%s,%lu,%lu,%lu,%lu,%lu,%lu\n",
         config.benchmark,
         config.implementation,
+        config.pattern,
+        sequence_length,
         system_setup_elapsed_time,
         object_creation_elapsed_time,
         execution_elapsed_time,
         object_cleanup_elapsed_time,
         system_teardown_elapsed_time);
+
+    printf("Results:\n");
+    printf("  * system_setup:    %12luns\n", system_setup_elapsed_time);
+    printf("  * object_creation: %12luns\n", object_creation_elapsed_time);
+    printf("  * execution:       %12luns\n", execution_elapsed_time);
+    printf("  * object_cleanup:  %12luns\n", object_cleanup_elapsed_time);
+    printf("  * object_teardown: %12luns\n", system_teardown_elapsed_time);
+
+    // Various cleanup
+    free(sequence);
 
 }

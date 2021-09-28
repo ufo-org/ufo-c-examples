@@ -1,2 +1,2 @@
 
-long current_time_in_ms();
+uint64_t current_time_in_ns();

@@ -1,7 +1,7 @@
 # You can set UFO_DEBUG=1 or UFO_DEBUG=0 in the environment to compile with or
 # without debug symbols (this affects both the C and the Rust code).
 
-SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c
+SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c src/seq.c
 
 # -----------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ endif
 
 .PHONY: all ufo-c ufo-c-clean clean
 
-all: libs postgres bzip fib bench
+all: libs postgres bzip fib seq bench
 
 OBJECTS = $(SOURCES_C:.c=.o)
 
@@ -47,6 +47,9 @@ bzip: libs
 
 fib: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o fib src/fib.o $(LFLAGS) $(LIBS) src/fib_example.c
+
+seq: libs
+	$(CC) $(CFLAGS) $(INCLUDES) -o seq src/seq.o $(LFLAGS) $(LIBS) src/seq_example.c
 
 bench: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(LFLAGS) $(LIBS) 

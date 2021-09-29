@@ -7,25 +7,11 @@
 #include <errno.h>
 #include <assert.h>
 
+#include "logging.h"
 #include "bzip.h"
 #include "ufo_c/target/ufo_c.h"
 
 #include <bzlib.h>
-
-//#define DEBUG
-#ifdef DEBUG 
-#define LOG(...) fprintf(stderr, "DEBUG: " __VA_ARGS__)
-#define LOG_SHORT(...) fprintf(stderr,  __VA_ARGS__)
-#else
-#define LOG(...) 
-#define LOG_SHORT(...) 
-#endif
-#define WARN(...) fprintf(stderr, "WARNING: " __VA_ARGS__)
-#define REPORT(...) fprintf(stderr, "ERROR: " __VA_ARGS__)
-
-// #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
-// #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
-// #define MIN_LOAD_COUNT  (900L * 1024) // around block size, so around 900kB
 
 // The bzip code was adapted from bzip2recovery.
 

@@ -8,19 +8,9 @@
 #include <assert.h>
 #include <bzlib.h>
 
+#include "logging.h"
 #include "bzip.h"
 #include "ufo_c/target/ufo_c.h"
-
-#define DEBUG
-#ifdef DEBUG 
-#define LOG(...) fprintf(stderr, "DEBUG: " __VA_ARGS__)
-#define LOG_SHORT(...) fprintf(stderr,  __VA_ARGS__)
-#else
-#define LOG(...) 
-#define LOG_SHORT(...) 
-#endif
-#define WARN(...) fprintf(stderr, "WARNING: " __VA_ARGS__)
-#define REPORT(...) fprintf(stderr, "ERROR: " __VA_ARGS__)
 
 #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
 #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
@@ -49,20 +39,3 @@ int main(int argc, char *argv[]) {
     BZip2_ufo_free(&ufo_system, object);
     ufo_core_shutdown(ufo_system);
 }
-
-// int main(int argc, char *argv[]) {
-//     // Find all the blocks in the input file
-//     Blocks *blocks = Blocks_parse("test/test2.txt.bz2");
-
-//     for (size_t i = 0; i < blocks->blocks; i++) {
-//         // Extract a single compressed block
-//         Block *block = Block_from(blocks, i);
-
-//         // Create the structures for outputting the decompressed data into
-//         size_t output_buffer_size = 1024 * 1024 * 1024; // 1MB
-//         char *output_buffer = (char *) calloc(output_buffer_size, sizeof(char));
-
-//         int output_buffer_occupancy = Block_decompress(block, output_buffer_size, output_buffer);
-//         printf("%d: %s", output_buffer_occupancy, output_buffer);
-//     }
-// }

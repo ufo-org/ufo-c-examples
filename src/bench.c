@@ -9,19 +9,17 @@
 #include "ufo_c/target/ufo_c.h"
 #include "timing.h"
 
+#include "logging.h"
+#include "seq.h"
 #include "fib.h"
 #include "bzip.h"
 
-#define GB (1024L * 1024L * 1024L)
-#define MB (1024L * 1024L)
-#define KB (1024L)
-
-#define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
-#define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
-#define MIN_LOAD_COUNT  (4L * 1024)
+#define GB (1024UL * 1024UL * 1024UL)
+#define MB (1024UL * 1024UL)
+#define KB (1024UL)
 
 bool file_exists (char *filename) {
-  struct stat   buffer;   
+  struct stat buffer;   
   return (stat (filename, &buffer) == 0);
 }
 
@@ -82,7 +80,7 @@ typedef void *(*system_setup_t)(Arguments *);
 void *ufo_setup(Arguments *config) {
     UfoCore ufo_system = ufo_new_core("/tmp/", config->high_water_mark, config->low_water_mark);
     if (ufo_core_is_error(&ufo_system)) {
-        printf("ERROR: Cannot create UFO core system.\n");
+        REPORT("Cannot create UFO core system.\n");
         exit(1);
     }
     UfoCore *ptr = (UfoCore *) malloc(sizeof(UfoCore));
@@ -93,7 +91,7 @@ void *normil_setup(Arguments *config) {
     return NULL;
 }
 void *ny_setup(Arguments *config) {
-    printf("ny_setup unimplemented!\n");
+    REPORT("ny_setup unimplemented!\n");
     exit(99);
 }
 
@@ -124,7 +122,7 @@ void *ufo_fib_creation(Arguments *config, AnySystem system) {
     return (void *) ufo_fib_new(ufo_system_ptr, config->size, config->writes == 0, config->min_load);
 }
 void *ny_fib_creation(Arguments *config, AnySystem system) {
-    printf("ny_fib_creation unimplemented!\n");
+    REPORT("ny_fib_creation unimplemented!\n");
     exit(99);
 }
 
@@ -137,7 +135,20 @@ void *ufo_bzip_creation(Arguments *config, AnySystem system) {
     return (void *) BZip2_ufo_new(ufo_system_ptr, config->file, config->writes == 0, config->min_load);
 }
 void *ny_bzip_creation(Arguments *config, AnySystem system) {
-    printf("ny_bzip_creation unimplemented!\n");
+    REPORT("ny_bzip_creation unimplemented!\n");
+    exit(99);
+}
+
+// Seq
+void *normil_seq_creation(Arguments *config, AnySystem system) {
+    return (void *) seq_normil_from_length(1, config->size, 2);
+}
+void *ufo_seq_creation(Arguments *config, AnySystem system) {
+    UfoCore *ufo_system_ptr = (UfoCore *) system;
+    return (void *) seq_ufo_from_length(ufo_system_ptr, 1, config->size, 2, config->writes == 0, config->min_load);
+}
+void *ny_seq_creation(Arguments *config, AnySystem system) {
+    REPORT("ny_seq_creation unimplemented!\n");
     exit(99);
 }
 
@@ -153,7 +164,7 @@ void ufo_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     ufo_fib_free(ufo_system_ptr, object);
 }
 void ny_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    printf("ny_fib_cleanup unimplemented!\n");
+    REPORT("ny_fib_cleanup unimplemented!\n");
     exit(99);
 }
 
@@ -166,7 +177,20 @@ void ufo_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     BZip2_ufo_free(ufo_system_ptr, object);
 }
 void ny_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    printf("ny_bzip_cleanup unimplemented!\n");
+    REPORT("ny_bzip_cleanup unimplemented!\n");
+    exit(99);
+}
+
+// Seq
+void normil_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    seq_normil_free(object);
+}
+void ufo_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    UfoCore *ufo_system_ptr = (UfoCore *) system;
+    seq_ufo_free(ufo_system_ptr, object);
+}
+void ny_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    REPORT("ny_seq_cleanup unimplemented!\n");
     exit(99);
 }
 
@@ -180,6 +204,7 @@ typedef struct {
     size_t length; 
     size_t since_last_write; 
 } ScanSequence;
+
 SequenceResult ScanSequence_next(Arguments *config, AnySequence sequence) {
     ScanSequence *scan_sequence = (ScanSequence *) sequence;
     SequenceResult result;
@@ -202,6 +227,7 @@ typedef struct {
     size_t max_length;
     size_t since_last_write; 
 } RandomSequence;
+
 SequenceResult RandomSequence_next(Arguments *config, AnySequence sequence) {
     RandomSequence *random_sequence = (RandomSequence *) sequence;
     SequenceResult result;
@@ -227,39 +253,23 @@ size_t bzip_max_length(Arguments *config, AnySystem system, AnyObject object) {
     BZip2 *bzip2 = (BZip2 *) object;
     return bzip2->size;
 }
+size_t seq_max_length(Arguments *config, AnySystem system, AnyObject object) {
+    return config->size;
+}
 
 // EXECUTION
 typedef void (*execution_t)(Arguments *, AnySystem, AnyObject, AnySequence, sequence_t);
 
 // Fibonacci
-void normil_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     uint64_t *data = (uint64_t *) object;    
     uint64_t *sum = 0;
     SequenceResult result;
     while (true) {
         result = next(config, sequence);        
         if (result.end) {
-            printf("  * end at index %lu\n", result.current);
-            break;
-        }        
-        // printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
-        if (result.write) {
-            data[result.current] = random_int(1000);
-        } else {
-            sum += data[result.current];
-        }
-    };
-}
-void ufo_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
-    uint64_t *data = (uint64_t *) object;
-    uint64_t *sum = 0;
-    SequenceResult result;
-    while (true) {
-        result = next(config, sequence);
-        if (result.end) {
             break;
         }
-        // printf("  * %s fib[%lu]\n", result.write ? "write to" : "read from", result.current);
         if (result.write) {
             data[result.current] = random_int(1000);
         } else {
@@ -268,39 +278,20 @@ void ufo_fib_execution(Arguments *config, AnySystem system, AnyObject object, An
     };
 }
 void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
-    printf("ny_fib_execution not implemented!\n");
+    REPORT("ny_fib_execution not implemented!\n");
     exit(43); 
 }
 
 // BZip2
-void normil_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     uint64_t *data = (uint64_t *) object;    
     uint64_t *sum = 0;
     SequenceResult result;
     while (true) {
         result = next(config, sequence);        
         if (result.end) {
-            printf("  * end at index %lu\n", result.current);
             break;
         }        
-        // printf("  * %s bzip[%lu]\n", result.write ? "write to" : "read from", result.current);
-        if (result.write) {
-            data[result.current] = random_int(126 - 32) + 32;
-        } else {
-            sum += data[result.current];
-        }
-    };
-}
-void ufo_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
-    uint64_t *data = (uint64_t *) object;
-    uint64_t *sum = 0;
-    SequenceResult result;
-    while (true) {
-        result = next(config, sequence);
-        if (result.end) {
-            break;
-        }
-        // printf("  * %s bzip[%lu]\n", result.write ? "write to" : "read from", result.current);
         if (result.write) {
             data[result.current] = random_int(126 - 32) + 32;
         } else {
@@ -309,12 +300,33 @@ void ufo_bzip_execution(Arguments *config, AnySystem system, AnyObject object, A
     };
 }
 void ny_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
-    printf("ny_bzip_execution not implemented!\n");
+    REPORT("ny_bzip_execution not implemented!\n");
+    exit(43); 
+}
+
+// Seq
+void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    int64_t *data = (int64_t *) object;    
+    int64_t *sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);        
+        if (result.end) {
+            break;
+        }        
+        if (result.write) {
+            data[result.current] = random_int(1000);
+        } else {
+            sum += data[result.current];
+        }
+    };
+}
+void ny_seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    REPORT("ny_fib_execution not implemented!\n");
     exit(43); 
 }
 
 // MAIN
-
 int main(int argc, char *argv[]) {
 
     Arguments config;
@@ -354,25 +366,25 @@ int main(int argc, char *argv[]) {
     argp_parse (&argp, argc, argv, 0, 0, &config);
 
     // Check.
-    printf("Benchmark configuration:\n");
-    printf("  * benchmark:       %s\n",  config.benchmark      );
-    printf("  * implementation:  %s\n",  config.implementation );
-    printf("  * pattern:         %s\n",  config.pattern        );
-    printf("  * size:            %lu\n", config.size           );
-    printf("  * min_load:        %lu\n", config.min_load       );
-    printf("  * high_water_mark: %lu\n", config.high_water_mark);
-    printf("  * low_water_mark:  %lu\n", config.low_water_mark );
-    printf("  * file:            %s\n",  config.file           );
-    printf("  * timing:          %s\n",  config.timing         );
-    printf("  * writes:          %lu\n", config.writes         );
-    printf("  * sample_size:     %lu\n", config.sample_size    );
-    printf("  * seed:            %u\n",  config.seed           );
+    INFO("Benchmark configuration:\n");
+    INFO("  * benchmark:       %s\n",  config.benchmark      );
+    INFO("  * implementation:  %s\n",  config.implementation );
+    INFO("  * pattern:         %s\n",  config.pattern        );
+    INFO("  * size:            %lu\n", config.size           );
+    INFO("  * min_load:        %lu\n", config.min_load       );
+    INFO("  * high_water_mark: %lu\n", config.high_water_mark);
+    INFO("  * low_water_mark:  %lu\n", config.low_water_mark );
+    INFO("  * file:            %s\n",  config.file           );
+    INFO("  * timing:          %s\n",  config.timing         );
+    INFO("  * writes:          %lu\n", config.writes         );
+    INFO("  * sample_size:     %lu\n", config.sample_size    );
+    INFO("  * seed:            %u\n",  config.seed           );
 
     // Random seed
     srand(config.seed);
 
     // Setup and teardown;
-    printf("System configuration\n");
+    INFO("System configuration\n");
     system_setup_t system_setup = NULL;
     system_teardown_t system_teardown = NULL;
     if (strcmp(config.implementation, "ufo") == 0) {
@@ -388,7 +400,7 @@ int main(int argc, char *argv[]) {
         system_teardown = &normil_teardown;
     }
     if (system_setup == NULL || system_teardown == NULL) {
-        printf("Unknown implementation \"%s\"\n", config.implementation);
+        REPORT("Unknown implementation \"%s\"\n", config.implementation);
         return 4;
     }
 
@@ -400,60 +412,78 @@ int main(int argc, char *argv[]) {
     max_length_t max_length = NULL;
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
         object_creation = ufo_fib_creation;
-        execution = ufo_fib_execution;
         object_cleanup = ufo_fib_cleanup;
+        execution = fib_execution;        
         max_length = fib_max_length;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "ny") == 0)) {
         object_creation = ny_fib_creation;
-        execution = ny_fib_execution;
         object_cleanup = ny_fib_cleanup;
+        execution = ny_fib_execution;        
         max_length = fib_max_length;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "normil") == 0)) {
         object_creation = normil_fib_creation;
-        execution = normil_fib_execution;
         object_cleanup = normil_fib_cleanup;
+        execution = fib_execution;        
         max_length = fib_max_length;
     }
-        if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
+    if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
         object_creation = ufo_bzip_creation;
-        execution = ufo_bzip_execution;
         object_cleanup = ufo_bzip_cleanup;
+        execution = bzip_execution;        
         max_length = bzip_max_length;
     }
     if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "ny") == 0)) {
         object_creation = ny_bzip_creation;
-        execution = ny_bzip_execution;
         object_cleanup = ny_bzip_cleanup;
+        execution = ny_bzip_execution;        
         max_length = bzip_max_length;
     }
     if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "normil") == 0)) {
         object_creation = normil_bzip_creation;
-        execution = normil_bzip_execution;
         object_cleanup = normil_bzip_cleanup;
+        execution = bzip_execution;        
         max_length = bzip_max_length;
     }
+    if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
+        object_creation = ufo_seq_creation;
+        object_cleanup = ufo_seq_cleanup;
+        execution = seq_execution;
+        max_length = seq_max_length;
+    }
+    if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+        object_creation = ny_seq_creation;
+        object_cleanup = ny_seq_cleanup;
+        execution = ny_seq_execution;        
+        max_length = seq_max_length;
+    }
+    if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "normil") == 0)) {
+        object_creation = normil_seq_creation;
+        object_cleanup = normil_seq_cleanup;
+        execution = seq_execution;        
+        max_length = seq_max_length;
+    }
     if (object_creation == NULL || object_cleanup == NULL) {
-        printf("Unknown benchmark/implementation combination \"%s\"/\"%s\"\n", 
+        REPORT("Unknown benchmark/implementation combination \"%s\"/\"%s\"\n", 
         config.benchmark, config.implementation);
         return 4;
     }
 
     // System setup
-    printf("System setup\n");
+    INFO("System setup\n");
     uint64_t system_setup_start_time = current_time_in_ns();
     AnySystem system = system_setup(&config);
     uint64_t system_setup_elapsed_time = current_time_in_ns() - system_setup_start_time;
 
     // Object creation
-    printf("Object creation\n");
+    INFO("Object creation\n");
     uint64_t object_creation_start_time = current_time_in_ns();
     AnyObject object = object_creation(&config, system);
     uint64_t object_creation_elapsed_time = current_time_in_ns() - object_creation_start_time;
 
     // Detour: sequence selection    
-    printf("Index sequence configuration\n");
+    INFO("Index sequence configuration\n");
     AnySequence sequence = NULL;
     sequence_t next = NULL;
     size_t max_sequence_length = max_length(&config, system, object);
@@ -478,24 +508,24 @@ int main(int argc, char *argv[]) {
         next = &RandomSequence_next;
     }
     if (sequence == NULL) {
-        printf("Unknown sequence pattern \"%s\"\n", config.pattern);
+        INFO("Unknown sequence pattern \"%s\"\n", config.pattern);
         return 5;
     }
 
     // Execution
-    printf("Execution\n");
+    INFO("Execution\n");
     uint64_t execution_start_time = current_time_in_ns();
     execution(&config, system, object, sequence, next);
     uint64_t execution_elapsed_time = current_time_in_ns() - execution_start_time;
 
     // Object cleanup
-    printf("Object cleanup\n");
+    INFO("Object cleanup\n");
     uint64_t object_cleanup_start_time = current_time_in_ns();
     object_cleanup(&config, system, object);
     uint64_t object_cleanup_elapsed_time = current_time_in_ns() - object_cleanup_start_time;
     
     // System teardown
-    printf("System teardown\n");
+    INFO("System teardown\n");
     uint64_t system_teardown_start_time = current_time_in_ns();
     system_teardown(&config, system);
     uint64_t system_teardown_elapsed_time = current_time_in_ns() - system_teardown_start_time;
@@ -505,7 +535,7 @@ int main(int argc, char *argv[]) {
     if (!file_exists(config.timing)) {
         output_stream = fopen(config.timing, "w");
         fprintf(output_stream, 
-                "benchmark,"
+               "benchmark,"
                "implementation,"
                "pattern,"
                "min_load_count,"
@@ -525,7 +555,7 @@ int main(int argc, char *argv[]) {
         config.benchmark,
         config.implementation,
         config.pattern,
-        config.min_load,
+        (strcmp("ufo", config.implementation) == 0) ? config.min_load : 0, // Only if it matters
         sequence_length,
         config.writes,
         system_setup_elapsed_time,
@@ -534,12 +564,12 @@ int main(int argc, char *argv[]) {
         object_cleanup_elapsed_time,
         system_teardown_elapsed_time);
 
-    printf("Results:\n");
-    printf("  * system_setup:    %12luns\n", system_setup_elapsed_time);
-    printf("  * object_creation: %12luns\n", object_creation_elapsed_time);
-    printf("  * execution:       %12luns\n", execution_elapsed_time);
-    printf("  * object_cleanup:  %12luns\n", object_cleanup_elapsed_time);
-    printf("  * object_teardown: %12luns\n", system_teardown_elapsed_time);
+    LOG("Results:\n");
+    LOG("  * system_setup:    %12luns\n", system_setup_elapsed_time);
+    LOG("  * object_creation: %12luns\n", object_creation_elapsed_time);
+    LOG("  * execution:       %12luns\n", execution_elapsed_time);
+    LOG("  * object_cleanup:  %12luns\n", object_cleanup_elapsed_time);
+    LOG("  * object_teardown: %12luns\n", system_teardown_elapsed_time);
 
     // Various cleanup
     free(sequence);

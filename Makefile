@@ -2,6 +2,7 @@
 # without debug symbols (this affects both the C and the Rust code).
 
 SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c src/seq.c src/random.c
+SOURCES_CPP = src/nycpp.cpp
 
 # -----------------------------------------------------------------------------
 
@@ -20,8 +21,10 @@ endif
 LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lbz2 -lstdc++ $(UFO_C_LIB_PATH)/libufo_c.a 
 ifeq (${UFO_DEBUG}, 1)
 	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
+	CXXFLAGS =           -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
 else
 	CFLAGS =             -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
+	CXXFLAGS =           -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
 endif
 
 # TODO split CFLAGS for different wotsits
@@ -33,8 +36,9 @@ endif
 all: libs postgres bzip fib seq bench
 
 OBJECTS = $(SOURCES_C:.c=.o)
+OBJECTS_CPP = $(SOURCES_CPP:.cpp=.o)
 
-libs: ufo-c $(OBJECTS)
+libs: ufo-c $(OBJECTS) $(OBJECTS_CPP)
 
 example: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o example $(LFLAGS) $(LIBS) src/example.c
@@ -52,7 +56,7 @@ seq: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o seq src/seq.o $(LFLAGS) $(LIBS) src/seq_example.c
 
 bench: libs
-	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(LFLAGS) $(LIBS) 
+	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(OBJECTS_CPP) $(LFLAGS) $(LIBS) 
 
 clean: ufo-c-clean
 	$(RM) src/*.o *~ $(MAIN)

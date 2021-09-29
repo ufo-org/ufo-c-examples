@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -39,6 +40,6 @@ typedef void  *(*system_setup_t)   (Arguments *);
 typedef void   (*system_teardown_t)(Arguments *, AnySystem);
 typedef void  *(*object_creation_t)(Arguments *, AnySystem);
 typedef void   (*object_cleanup_t) (Arguments *, AnySystem, AnyObject);
-typedef void   (*execution_t)      (Arguments *, AnySystem, AnyObject, AnySequence, sequence_t);
+typedef void   (*execution_t)      (Arguments *, AnySystem, AnyObject, AnySequence, sequence_t, volatile int64_t *oubliette);
 typedef size_t (*max_length_t)     (Arguments *, AnySystem, AnyObject);
 

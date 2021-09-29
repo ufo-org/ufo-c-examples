@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 #include <stdbool.h>
 #include "ufo_c/target/ufo_c.h"

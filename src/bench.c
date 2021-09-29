@@ -15,6 +15,7 @@
 #include "bzip.h"
 #include "postgres.h"
 #include "random.h"
+#include "nycpp.h"
 
 #include "bench.h"
 
@@ -249,7 +250,7 @@ size_t psql_max_length(Arguments *config, AnySystem system, AnyObject object) {
 
 // EXECUTION
 // Fibonacci
-void fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     uint64_t *data = (uint64_t *) object;    
     uint64_t sum = 0;
     SequenceResult result;
@@ -264,14 +265,15 @@ void fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySeq
             sum += data[result.current];
         }
     };
+    *oubliette = sum;
 }
-void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     REPORT("ny_fib_execution not implemented!\n");
     exit(43); 
 }
 
 // BZip2
-void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     uint64_t *data = (uint64_t *) object;    
     uint64_t sum = 0;
     SequenceResult result;
@@ -286,14 +288,15 @@ void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySe
             sum += data[result.current];
         }
     };
+    *oubliette = sum;
 }
-void ny_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void ny_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     REPORT("ny_bzip_execution not implemented!\n");
     exit(43); 
 }
 
 // Seq
-void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     int64_t *data = (int64_t *) object;    
     int64_t sum = 0;
     SequenceResult result;
@@ -308,14 +311,15 @@ void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySeq
             sum += data[result.current];
         }
     };
+    *oubliette = sum;
 }
-void ny_seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void ny_seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     REPORT("ny_fib_execution not implemented!\n");
     exit(43); 
 }
 
 // PSQL
-void psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     Players *players = (Players *) object;    
     int64_t tds = 0;
     int64_t mvp = 0;
@@ -333,8 +337,9 @@ void psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySe
             mvp += players->data[result.current].mvp;
         }
     };
+    *oubliette = tds + mvp;
 }
-void ny_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+void ny_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
     REPORT("ny_psql_execution not implemented!\n");
     exit(43); 
 }
@@ -362,7 +367,7 @@ int main(int argc, char *argv[]) {
     static char args_doc[] = "";
     static struct argp_option options[] = {
         {"benchmark",       'b', "BENCHMARK",      0,  "Benchmark (populate function) to run: seq, fib, psql, or bzip"},
-        {"implementation",  'i', "IMPL",           0,  "Implementation to run: ufo , ny, normil"},
+        {"implementation",  'i', "IMPL",           0,  "Implementation to run: ufo , ny, nyc++, normil"},
         {"pattern",         'p', "FILE",           0,  "Read pattern: scan, random"},
         {"sample-size",     'n', "FILE",           0,  "How many elements to read from vector: zero for all"},
         {"writes",          'w', "N%%",            0,  "One write will occur once for every N%% reads, zero for read-only"},
@@ -435,6 +440,12 @@ int main(int argc, char *argv[]) {
         execution = ny_fib_execution;        
         max_length = fib_max_length;
     }
+    if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
+        object_creation = nycpp_fib_creation;
+        object_cleanup = nycpp_fib_cleanup;
+        execution = nycpp_fib_execution;        
+        max_length = fib_max_length;
+    }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "normil") == 0)) {
         object_creation = normil_fib_creation;
         object_cleanup = normil_fib_cleanup;
@@ -451,6 +462,12 @@ int main(int argc, char *argv[]) {
         object_creation = ny_bzip_creation;
         object_cleanup = ny_bzip_cleanup;
         execution = ny_bzip_execution;        
+        max_length = bzip_max_length;
+    }
+    if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
+        object_creation = nycpp_bzip_creation;
+        object_cleanup = nycpp_bzip_cleanup;
+        execution = nycpp_bzip_execution;        
         max_length = bzip_max_length;
     }
     if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "normil") == 0)) {
@@ -471,6 +488,12 @@ int main(int argc, char *argv[]) {
         execution = ny_seq_execution;        
         max_length = seq_max_length;
     }
+    if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
+        object_creation = nycpp_seq_creation;
+        object_cleanup = nycpp_seq_cleanup;
+        execution = nycpp_seq_execution;        
+        max_length = seq_max_length;
+    }
     if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "normil") == 0)) {
         object_creation = normil_seq_creation;
         object_cleanup = normil_seq_cleanup;
@@ -487,6 +510,12 @@ int main(int argc, char *argv[]) {
         object_creation = ny_psql_creation;
         object_cleanup = ny_psql_cleanup;
         execution = ny_psql_execution;        
+        max_length = psql_max_length;
+    }
+    if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
+        object_creation = nycpp_psql_creation;
+        object_cleanup = nycpp_psql_cleanup;
+        execution = nycpp_psql_execution;        
         max_length = psql_max_length;
     }
     if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "normil") == 0)) {
@@ -545,8 +574,9 @@ int main(int argc, char *argv[]) {
 
     // Execution
     INFO("Execution\n");
+    int64_t oubliette = 0;
     uint64_t execution_start_time = current_time_in_ns();
-    execution(&config, system, object, sequence, next);
+    execution(&config, system, object, sequence, next, &oubliette);
     uint64_t execution_elapsed_time = current_time_in_ns() - execution_start_time;
 
     // Object cleanup

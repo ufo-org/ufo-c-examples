@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -13,12 +14,13 @@ extern "C" {
 #ifdef __cplusplus
 
 #include <memory>
+#include <stdlib.h>
 
 template <class T>
 class NYCpp {
     public:
-    NYCpp(size_t n): inner(std::unique_ptr<T[]>(new int32_t[n])), size(n) {}
-    ~NYCpp() {}
+    NYCpp(size_t n, T* data): size(n), inner(data) {}
+    ~NYCpp() { free(inner); }
     T operator [](int i) const {
         return inner[i];
     }
@@ -26,12 +28,34 @@ class NYCpp {
         return inner[i];
     }
     private:
-    std::unique_ptr<T[]> inner;
     size_t size;
+    T *inner;    
 };
 
 #endif
 
-void *nypp_seq_creation(Arguments *config, AnySystem system);
-void nypp_seq_cleanup(Arguments *config, AnySystem system, AnyObject object);
-void nypp_seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void *nycpp_seq_creation  (Arguments *config, AnySystem system);
+void *nycpp_fib_creation  (Arguments *config, AnySystem system);
+void *nycpp_bzip_creation (Arguments *config, AnySystem system);
+void *nycpp_seq_creation  (Arguments *config, AnySystem system);
+void *nycpp_psql_creation (Arguments *config, AnySystem system);
+
+void  nycpp_seq_cleanup   (Arguments *config, AnySystem system, AnyObject object);
+void  nycpp_fib_cleanup   (Arguments *config, AnySystem system, AnyObject object); 
+void  nycpp_bzip_cleanup  (Arguments *config, AnySystem system, AnyObject object);
+void  nycpp_seq_cleanup   (Arguments *config, AnySystem system, AnyObject object);
+void  nycpp_psql_cleanup  (Arguments *config, AnySystem system, AnyObject object);
+
+void  nycpp_seq_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
+void  nycpp_fib_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
+void  nycpp_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
+void  nycpp_seq_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
+void  nycpp_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
+
+#ifdef __cplusplus
+}
+#endif

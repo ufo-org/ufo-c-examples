@@ -274,7 +274,7 @@ void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, Any
 
 // BZip2
 void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
-    uint64_t *data = (uint64_t *) object;    
+    BZip2 *bzip = (BZip2 *) object;    
     uint64_t sum = 0;
     SequenceResult result;
     while (true) {
@@ -283,9 +283,9 @@ void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySe
             break;
         }        
         if (result.write) {
-            data[result.current] = random_int(126 - 32) + 32;
+            bzip->data[result.current] = random_int(126 - 32) + 32;
         } else {
-            sum += data[result.current];
+            sum += bzip->data[result.current];
         }
     };
     *oubliette = sum;

@@ -55,7 +55,7 @@ void nycpp_seq_execution(Arguments *config, AnySystem system, AnyObject object, 
 
 // Fib
 void *nycpp_fib_creation(Arguments *config, AnySystem system) {
-    uint64_t *fib= normil_fib_new(config->size);    
+    uint64_t *fib = normil_fib_new(config->size);    
     NYCpp<uint64_t> *nycpp = new NYCpp<uint64_t>(config->size, fib);
     return (void *) nycpp;
 }
@@ -93,7 +93,7 @@ void nycpp_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     delete nycpp;
 }
 void nycpp_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
-    uint64_t *data = (uint64_t *) object;    
+    NYCpp<char> *nycpp = (NYCpp<char> *) object;    
     uint64_t sum = 0;
     SequenceResult result;
     while (true) {
@@ -102,9 +102,9 @@ void nycpp_bzip_execution(Arguments *config, AnySystem system, AnyObject object,
             break;
         }        
         if (result.write) {
-            data[result.current] = random_int(126 - 32) + 32;
+            (*nycpp)[result.current] = random_int(126 - 32) + 32;
         } else {
-            sum += data[result.current];
+            sum += (*nycpp)[result.current];
         }
     };
     *oubliette = sum;

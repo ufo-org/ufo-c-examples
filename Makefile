@@ -59,7 +59,7 @@ bench: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(OBJECTS_CPP) $(LFLAGS) $(LIBS) 
 
 clean: ufo-c-clean
-	$(RM) src/*.o *~ $(MAIN)
+	$(RM) src/*.o *~ $(MAIN) bench seq fib bzip postgres 
 
 ufo-c:
 	cargo $(CARGOFLAGS) --manifest-path=$(UFO_C_PATH)/Cargo.toml

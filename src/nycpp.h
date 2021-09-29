@@ -38,6 +38,9 @@ class NYCpp {
 extern "C" {
 #endif
 
+void *nycpp_setup         (Arguments *config);
+void  nycpp_teardown      (Arguments *config, AnySystem system);
+
 void *nycpp_seq_creation  (Arguments *config, AnySystem system);
 void *nycpp_fib_creation  (Arguments *config, AnySystem system);
 void *nycpp_bzip_creation (Arguments *config, AnySystem system);

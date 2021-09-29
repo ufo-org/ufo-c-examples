@@ -15,6 +15,14 @@ extern "C" {
 }
 #endif
 
+void *nycpp_setup(Arguments *config) {
+    return NULL;
+}
+
+void nycpp_teardown(Arguments *config, AnySystem system) {
+    /* empty */
+}
+
 // Seq
 void *nycpp_seq_creation(Arguments *config, AnySystem system) {   
     int64_t *sequence = seq_normil_from_length(1, config->size, 2);    

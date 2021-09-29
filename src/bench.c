@@ -413,6 +413,10 @@ int main(int argc, char *argv[]) {
         system_setup = &ny_setup;
         system_teardown = &ny_teardown;
     }
+    if (strcmp(config.implementation, "nyc++") == 0) {
+        system_setup = &nycpp_setup;
+        system_teardown = &nycpp_teardown;
+    }
     if (strcmp(config.implementation, "normil") == 0) {
         system_setup = &normil_setup;
         system_teardown = &normil_teardown;
@@ -441,6 +445,7 @@ int main(int argc, char *argv[]) {
         max_length = fib_max_length;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
+        printf("x.x");
         object_creation = nycpp_fib_creation;
         object_cleanup = nycpp_fib_cleanup;
         execution = nycpp_fib_execution;        

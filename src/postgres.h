@@ -9,6 +9,13 @@ typedef struct Player {
     int    mvp;
 } Player;
 
-Player *Player_new(UfoCore *ufo_system, bool read_only, size_t min_load_count);
-size_t Player_count(UfoCore *ufo_system, Player *ptr);
-void Player_free(UfoCore *ufo_system, Player *ptr);
+typedef struct {
+    size_t size;
+    Player *data;
+} Players;
+
+Players *Players_ufo_new(UfoCore *ufo_system, bool read_only, size_t min_load_count);
+void Players_ufo_free(UfoCore *ufo_system, Players *players);
+
+Players *Players_normil_new();
+void Players_normil_free(Players *players);

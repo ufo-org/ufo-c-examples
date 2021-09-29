@@ -1,4 +1,4 @@
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG 
 #define LOG(...) fprintf(stderr, "DEBUG: " __VA_ARGS__)
 #define LOG_SHORT(...) fprintf(stderr,  __VA_ARGS__)

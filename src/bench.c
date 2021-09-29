@@ -13,6 +13,7 @@
 #include "seq.h"
 #include "fib.h"
 #include "bzip.h"
+#include "postgres.h"
 
 #define GB (1024UL * 1024UL * 1024UL)
 #define MB (1024UL * 1024UL)
@@ -152,6 +153,19 @@ void *ny_seq_creation(Arguments *config, AnySystem system) {
     exit(99);
 }
 
+// Psql
+void *normil_psql_creation(Arguments *config, AnySystem system) {
+    return (void *) Players_normil_new();
+}
+void *ufo_psql_creation(Arguments *config, AnySystem system) {
+    UfoCore *ufo_system_ptr = (UfoCore *) system;
+    return (void *) Players_ufo_new(ufo_system_ptr, config->writes == 0, config->min_load);
+}
+void *ny_psql_creation(Arguments *config, AnySystem system) {
+    REPORT("ny_psql_creation unimplemented!\n");
+    exit(99);
+}
+
 // OBJECT CLEANUP
 typedef void (*object_cleanup_t)(Arguments *, AnySystem, AnyObject);
 
@@ -191,6 +205,19 @@ void ufo_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
 }
 void ny_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     REPORT("ny_seq_cleanup unimplemented!\n");
+    exit(99);
+}
+
+// Psql
+void normil_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    Players_normil_free(object);
+}
+void ufo_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    UfoCore *ufo_system_ptr = (UfoCore *) system;
+    Players_ufo_free(ufo_system_ptr, object);
+}
+void ny_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    REPORT("ny_psql_cleanup unimplemented!\n");
     exit(99);
 }
 
@@ -256,6 +283,10 @@ size_t bzip_max_length(Arguments *config, AnySystem system, AnyObject object) {
 size_t seq_max_length(Arguments *config, AnySystem system, AnyObject object) {
     return config->size;
 }
+size_t psql_max_length(Arguments *config, AnySystem system, AnyObject object) {
+    Players *players = (Players *) object;
+    return players->size;
+}
 
 // EXECUTION
 typedef void (*execution_t)(Arguments *, AnySystem, AnyObject, AnySequence, sequence_t);
@@ -263,7 +294,7 @@ typedef void (*execution_t)(Arguments *, AnySystem, AnyObject, AnySequence, sequ
 // Fibonacci
 void fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     uint64_t *data = (uint64_t *) object;    
-    uint64_t *sum = 0;
+    uint64_t sum = 0;
     SequenceResult result;
     while (true) {
         result = next(config, sequence);        
@@ -285,7 +316,7 @@ void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, Any
 // BZip2
 void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     uint64_t *data = (uint64_t *) object;    
-    uint64_t *sum = 0;
+    uint64_t sum = 0;
     SequenceResult result;
     while (true) {
         result = next(config, sequence);        
@@ -307,7 +338,7 @@ void ny_bzip_execution(Arguments *config, AnySystem system, AnyObject object, An
 // Seq
 void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     int64_t *data = (int64_t *) object;    
-    int64_t *sum = 0;
+    int64_t sum = 0;
     SequenceResult result;
     while (true) {
         result = next(config, sequence);        
@@ -323,6 +354,31 @@ void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySeq
 }
 void ny_seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     REPORT("ny_fib_execution not implemented!\n");
+    exit(43); 
+}
+
+// PSQL
+void psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    Players *players = (Players *) object;    
+    int64_t tds = 0;
+    int64_t mvp = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);        
+        if (result.end) {
+            break;
+        }        
+        if (result.write) {
+            players->data[result.current].tds = random_int(100);
+            players->data[result.current].mvp = random_int(100);
+        } else {
+            tds += players->data[result.current].tds;
+            mvp += players->data[result.current].mvp;
+        }
+    };
+}
+void ny_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
+    REPORT("ny_psql_execution not implemented!\n");
     exit(43); 
 }
 
@@ -348,7 +404,7 @@ int main(int argc, char *argv[]) {
     static char doc[] = "UFO performance benchmark utility.";
     static char args_doc[] = "";
     static struct argp_option options[] = {
-        {"benchmark",       'b', "BENCHMARK",      0,  "Benchmark (populate function) to run: seq, fib, postgres, or bzip"},
+        {"benchmark",       'b', "BENCHMARK",      0,  "Benchmark (populate function) to run: seq, fib, psql, or bzip"},
         {"implementation",  'i', "IMPL",           0,  "Implementation to run: ufo , ny, normil"},
         {"pattern",         'p', "FILE",           0,  "Read pattern: scan, random"},
         {"sample-size",     'n', "FILE",           0,  "How many elements to read from vector: zero for all"},
@@ -464,6 +520,24 @@ int main(int argc, char *argv[]) {
         execution = seq_execution;        
         max_length = seq_max_length;
     }
+    if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
+        object_creation = ufo_psql_creation;
+        object_cleanup = ufo_psql_cleanup;
+        execution = psql_execution;
+        max_length = psql_max_length;
+    }
+    if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+        object_creation = ny_psql_creation;
+        object_cleanup = ny_psql_cleanup;
+        execution = ny_psql_execution;        
+        max_length = psql_max_length;
+    }
+    if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "normil") == 0)) {
+        object_creation = normil_psql_creation;
+        object_cleanup = normil_psql_cleanup;
+        execution = psql_execution;        
+        max_length = psql_max_length;
+    }
     if (object_creation == NULL || object_cleanup == NULL) {
         REPORT("Unknown benchmark/implementation combination \"%s\"/\"%s\"\n", 
         config.benchmark, config.implementation);
@@ -564,12 +638,12 @@ int main(int argc, char *argv[]) {
         object_cleanup_elapsed_time,
         system_teardown_elapsed_time);
 
-    LOG("Results:\n");
-    LOG("  * system_setup:    %12luns\n", system_setup_elapsed_time);
-    LOG("  * object_creation: %12luns\n", object_creation_elapsed_time);
-    LOG("  * execution:       %12luns\n", execution_elapsed_time);
-    LOG("  * object_cleanup:  %12luns\n", object_cleanup_elapsed_time);
-    LOG("  * object_teardown: %12luns\n", system_teardown_elapsed_time);
+    INFO("Results:\n");
+    INFO("  * system_setup:    %12luns\n", system_setup_elapsed_time);
+    INFO("  * object_creation: %12luns\n", object_creation_elapsed_time);
+    INFO("  * execution:       %12luns\n", execution_elapsed_time);
+    INFO("  * object_cleanup:  %12luns\n", object_cleanup_elapsed_time);
+    INFO("  * object_teardown: %12luns\n", system_teardown_elapsed_time);
 
     // Various cleanup
     free(sequence);

@@ -22,12 +22,10 @@ int main(int argc, char **argv) {
     }
 
     // Create a UFO object
-    Player *players = Player_new(&ufo_system, true, MIN_LOAD_COUNT);
+    Players *players = Players_ufo_new(&ufo_system, true, MIN_LOAD_COUNT);
     if (players == NULL) {
         exit(2);
     }
-
-    size_t player_count = Player_count(&ufo_system, players);
 
     // Set up random sample;
     srand(42);
@@ -35,14 +33,14 @@ int main(int argc, char **argv) {
     
     // Use the UFO object: select 10 random objects
     for (size_t i = 0; i < sample_size; i++) {
-        int index = rand() % player_count;
-        Player player = players[index];
+        int index = rand() % players->size;
+        Player player = players->data[index];
         printf("id=%-6d name=%-64s tds=%-2d run=%-6.1f mvp=%-2d\n",  
                player.id, player.name, player.tds, player.run, player.mvp);
     }
 
     // Release the UFO object
-    Player_free(&ufo_system, players);
+    Players_ufo_free(&ufo_system, players);
 
     // Close down the UFO system before exiting
     ufo_core_shutdown(ufo_system);

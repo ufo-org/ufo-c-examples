@@ -6,10 +6,6 @@
 
 #include "ufo_c/target/ufo_c.h"
 
-#define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
-#define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
-#define MIN_LOAD_COUNT  (4L * 1024)
-
 typedef struct {
     uint64_t *self;
 } Fib;
@@ -29,7 +25,7 @@ int32_t fib_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned c
     return 0;
 }
 
-uint64_t *ufo_fib_new(UfoCore *ufo_system, size_t n, bool read_only) {
+uint64_t *ufo_fib_new(UfoCore *ufo_system, size_t n, bool read_only, size_t min_load_count) {
 
     Fib *data = (Fib *) malloc(sizeof(Fib));
     data->self = NULL;
@@ -38,7 +34,7 @@ uint64_t *ufo_fib_new(UfoCore *ufo_system, size_t n, bool read_only) {
     parameters.header_size = 0;
     parameters.element_size = strideOf(uint64_t);
     parameters.element_ct = n;
-    parameters.min_load_ct = MIN_LOAD_COUNT;
+    parameters.min_load_ct = min_load_count;
     parameters.read_only = read_only;
     parameters.populate_data = data;
     parameters.populate_fn = fib_populate;

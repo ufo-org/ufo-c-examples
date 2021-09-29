@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     }
 
     // Create a UFO object
-    Player *players = Player_new(&ufo_system);
+    Player *players = Player_new(&ufo_system, true, MIN_LOAD_COUNT);
     if (players == NULL) {
         exit(2);
     }

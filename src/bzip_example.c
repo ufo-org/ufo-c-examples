@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Create UFO object
-    BZip2 *object = BZip2_ufo_new(&ufo_system, "test/test2.txt.bz2", true);
+    BZip2 *object = BZip2_ufo_new(&ufo_system, "test/test2.txt.bz2", true, MIN_LOAD_COUNT);
     if (object == NULL) {
         exit(2);
     }

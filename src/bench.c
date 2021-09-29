@@ -121,7 +121,7 @@ void *normil_fib_creation(Arguments *config, AnySystem system) {
 }
 void *ufo_fib_creation(Arguments *config, AnySystem system) {
     UfoCore *ufo_system_ptr = (UfoCore *) system;
-    return (void *) ufo_fib_new(ufo_system_ptr, config->size, config->writes == 0);
+    return (void *) ufo_fib_new(ufo_system_ptr, config->size, config->writes == 0, config->min_load);
 }
 void *ny_fib_creation(Arguments *config, AnySystem system) {
     printf("ny_fib_creation unimplemented!\n");
@@ -134,7 +134,7 @@ void *normil_bzip_creation(Arguments *config, AnySystem system) {
 }
 void *ufo_bzip_creation(Arguments *config, AnySystem system) {
     UfoCore *ufo_system_ptr = (UfoCore *) system;
-    return (void *) BZip2_ufo_new(ufo_system_ptr, config->file, config->writes == 0);
+    return (void *) BZip2_ufo_new(ufo_system_ptr, config->file, config->writes == 0, config->min_load);
 }
 void *ny_bzip_creation(Arguments *config, AnySystem system) {
     printf("ny_bzip_creation unimplemented!\n");

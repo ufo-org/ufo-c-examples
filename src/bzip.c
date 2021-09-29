@@ -23,9 +23,9 @@
 #define WARN(...) fprintf(stderr, "WARNING: " __VA_ARGS__)
 #define REPORT(...) fprintf(stderr, "ERROR: " __VA_ARGS__)
 
-#define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
-#define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
-#define MIN_LOAD_COUNT  (900L * 1024) // around block size, so around 900kB
+// #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
+// #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
+// #define MIN_LOAD_COUNT  (900L * 1024) // around block size, so around 900kB
 
 // The bzip code was adapted from bzip2recovery.
 
@@ -982,7 +982,7 @@ static int32_t BZip2_populate(void* user_data, uintptr_t start, uintptr_t end, u
     return 0;
 }
 
-BZip2 *BZip2_ufo_new(UfoCore *ufo_system, char *filename, bool read_only) {
+BZip2 *BZip2_ufo_new(UfoCore *ufo_system, char *filename, bool read_only, size_t min_load_count) {
     
     Blocks *blocks = Blocks_new(filename);
     
@@ -997,7 +997,7 @@ BZip2 *BZip2_ufo_new(UfoCore *ufo_system, char *filename, bool read_only) {
     parameters.header_size = 0;
     parameters.element_size = strideOf(char);
     parameters.element_ct = blocks->decompressed_size;
-    parameters.min_load_ct = MIN_LOAD_COUNT;
+    parameters.min_load_ct = min_load_count;
     parameters.read_only = read_only;
     parameters.populate_data = blocks;
     parameters.populate_fn = BZip2_populate;

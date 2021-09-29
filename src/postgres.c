@@ -8,9 +8,9 @@
 #include "postgres.h"
 #include "ufo_c/target/ufo_c.h"
 
-#define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
-#define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
-#define MIN_LOAD_COUNT  (4L * 1024)
+// #define HIGH_WATER_MARK (2L * 1024 * 1024 * 1024)
+// #define LOW_WATER_MARK  (1L * 1024 * 1024 * 1024)
+// #define MIN_LOAD_COUNT  (4L * 1024)
 
 #define EXIT_OK 0
 #define EXIT_ERROR 1
@@ -168,7 +168,7 @@ size_t Player_count(UfoCore *ufo_system, Player *ptr) { // TODO use the data alr
     return parameters.element_ct;
 }
 
-Player *Player_new(UfoCore *ufo_system) {
+Player *Player_new(UfoCore *ufo_system, bool read_only, size_t min_load_count) {
     Data *data = (Data *) malloc(sizeof(Data));
 
     // Connect to database
@@ -189,8 +189,8 @@ Player *Player_new(UfoCore *ufo_system) {
     parameters.header_size = 0;
     parameters.element_size = strideOf(Player);
     parameters.element_ct = retrieve_size_of_table(data->database);
-    parameters.min_load_ct = MIN_LOAD_COUNT;
-    parameters.read_only = true;
+    parameters.min_load_ct = min_load_count;
+    parameters.read_only = read_only;
     parameters.populate_data = data;
     parameters.populate_fn = Player_populate;
     

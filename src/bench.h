@@ -1,3 +1,9 @@
+#include <stdint.h>
+
+#ifdef __cplusplus
+#include <cstddef>
+#endif
+
 #define GB (1024UL * 1024UL * 1024UL)
 #define MB (1024UL * 1024UL)
 #define KB (1024UL)

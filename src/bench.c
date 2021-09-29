@@ -14,41 +14,14 @@
 #include "fib.h"
 #include "bzip.h"
 #include "postgres.h"
+#include "random.h"
 
-#define GB (1024UL * 1024UL * 1024UL)
-#define MB (1024UL * 1024UL)
-#define KB (1024UL)
+#include "bench.h"
 
 bool file_exists (char *filename) {
   struct stat buffer;   
   return (stat (filename, &buffer) == 0);
 }
-
-int random_int(int ceiling) {
-    return rand() % ceiling;
-}
-
-size_t random_index(size_t ceiling) {
-    size_t high = (size_t) rand();
-    size_t low  = (size_t) rand();
-    size_t big = (high << 32) | low;
-    return big % ceiling;
-}
-
-typedef struct {
-    char *benchmark;
-    char *implementation;
-    char *pattern;
-    char *file;
-    char *timing;
-    size_t size;
-    size_t sample_size;
-    size_t min_load;
-    size_t high_water_mark;
-    size_t low_water_mark; 
-    size_t writes;
-    unsigned int seed;
-} Arguments;
 
 static error_t parse_opt (int key, char *value, struct argp_state *state) {
     /* Get the input argument from argp_parse, which we
@@ -73,11 +46,7 @@ static error_t parse_opt (int key, char *value, struct argp_state *state) {
     return 0;
 }
 
-typedef void *AnySystem;
-typedef void *AnyObject;
-
 // SETUP
-typedef void *(*system_setup_t)(Arguments *);
 void *ufo_setup(Arguments *config) {
     UfoCore ufo_system = ufo_new_core("/tmp/", config->high_water_mark, config->low_water_mark);
     if (ufo_core_is_error(&ufo_system)) {
@@ -97,7 +66,6 @@ void *ny_setup(Arguments *config) {
 }
 
 // TEARDOWN
-typedef void (*system_teardown_t)(Arguments *, AnySystem);
 void ufo_teardown(Arguments *config, AnySystem system) {
     UfoCore *ufo_system_ptr = (UfoCore *) system;
     ufo_core_shutdown(*ufo_system_ptr);
@@ -112,8 +80,6 @@ void ny_teardown(Arguments *config, AnySystem system) {
 }
 
 // OBJECT CREATION
-typedef void *(*object_creation_t)(Arguments *, AnySystem);
-
 // Fibonacci
 void *normil_fib_creation(Arguments *config, AnySystem system) {
     return (void *) normil_fib_new(config->size);
@@ -167,8 +133,6 @@ void *ny_psql_creation(Arguments *config, AnySystem system) {
 }
 
 // OBJECT CLEANUP
-typedef void (*object_cleanup_t)(Arguments *, AnySystem, AnyObject);
-
 // Fibonacci
 void normil_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     normil_fib_free(object);
@@ -222,10 +186,6 @@ void ny_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
 }
 
 // Sequence iterators
-typedef void *AnySequence;
-typedef struct { size_t current; bool end; bool write; } SequenceResult;
-typedef SequenceResult (*sequence_t)(Arguments *, AnySequence);
-
 typedef struct { 
     size_t current; 
     size_t length; 
@@ -272,7 +232,6 @@ SequenceResult RandomSequence_next(Arguments *config, AnySequence sequence) {
 }
 
 // MAX LENGTHS
-typedef size_t (*max_length_t)(Arguments *config, AnySystem, AnyObject);
 size_t fib_max_length(Arguments *config, AnySystem system, AnyObject object) {
     return config->size;
 }
@@ -289,8 +248,6 @@ size_t psql_max_length(Arguments *config, AnySystem system, AnyObject object) {
 }
 
 // EXECUTION
-typedef void (*execution_t)(Arguments *, AnySystem, AnyObject, AnySequence, sequence_t);
-
 // Fibonacci
 void fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next) {
     uint64_t *data = (uint64_t *) object;    

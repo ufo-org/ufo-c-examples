@@ -1054,9 +1054,9 @@ BZip2 *BZip2_normil_new(char *filename) {
 
     error = BZ_OK;
     while (error == BZ_OK) {
-        printf("< %i", (int) (buffer_size - buffer_occupancy));
+        // printf("< %i", (int) (buffer_size - buffer_occupancy));
         int read_bytes = BZ2_bzRead(&error, bzip2_stream, (void *)(buffer + buffer_occupancy), (int) (buffer_size - buffer_occupancy));
-        printf("> %i %i %i\n", read_bytes, error, error == BZ_OK);
+        // printf("> %i %i %i\n", read_bytes, error, error == BZ_OK);
         buffer_occupancy += read_bytes;
     }
 

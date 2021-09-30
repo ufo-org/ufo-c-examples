@@ -1,15 +1,42 @@
 #!/bin/bash
-
 implementations=( ufo nyc nyc++ normil )
 benchmarks=( seq fib psql bzip )
 patterns=( scan random )
-iterations=5
 
-for implementation in ${implementations[@]}; do
-for benchmark in ${benchmarks[@]}; do
-for pattern in ${patterns[@]}; do
-for iteration in `seq 1 $iterations`; do
+function bench {
+    ./bench $@
+}
 
-    ./bench -i $implementation -b $benchmark -p $pattern -f test/test2.txt.bz2
+function iterate {
+    local iterations=$1; shift
+    for i in $(seq 1 $iterations)
+    do
+        $@
+    done
+}
 
-done; done; done; done
+function for_all_benchmarks {
+    for benchmark in ${benchmarks[@]}
+    do
+        $@ -b $benchmark
+    done
+}
+
+function for_all_implementations {
+    for implementation in ${implementations[@]}
+    do
+        $@ -i $implementation
+    done
+}
+
+function for_all_patterns {
+    for pattern in ${patterns[@]}
+    do
+        $@ -p $pattern
+    done
+}
+
+for_all_benchmarks \
+for_all_implementations \
+for_all_patterns \
+    iterate 1 bench -f test/test2.txt.bz2

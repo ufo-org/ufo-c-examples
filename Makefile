@@ -31,7 +31,7 @@ endif
 
 # -----------------------------------------------------------------------------
 
-.PHONY: all ufo-c ufo-c-clean clean
+.PHONY: all ufo-c ufo-c-clean clean run
 
 all: libs postgres bzip fib seq bench
 
@@ -69,6 +69,7 @@ ufo-c:
 
 ufo-c-clean:
 	cargo clean --manifest-path=$(UFO_C_PATH)/Cargo.toml
+
 
 # update-dependencies:
 # 	cd src/ufo_c && git pull	

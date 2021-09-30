@@ -2,7 +2,7 @@
 
 ## Building
 
-Before building, retrievew the code of a submodule:
+Before building, retrievew the code of submodules:
 
 ```bash
 git submodule update --init --recursive
@@ -12,6 +12,7 @@ To update the submodule, pull it.
 
 ```bash
 cd src/ufo_c && git pull origin main && cd ../..
+cd src/new_york && git pull origin main && cd ../..
 ```
 
 Then build all packages:

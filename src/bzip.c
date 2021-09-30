@@ -9,7 +9,6 @@
 
 #include "logging.h"
 #include "bzip.h"
-#include "ufo_c/target/ufo_c.h"
 
 #include <bzlib.h>
 
@@ -1108,5 +1107,48 @@ BZip2 *__BZip2_normil_new(char *filename) {
 
 void BZip2_normil_free(BZip2 *object) {
     free(object->data);
+    free(object);
+}
+
+Borough *BZip2_nyc_new(NycCore *system, char *filename, size_t min_load_count) {
+    Blocks *blocks = Blocks_new(filename);
+    
+    // Check for bad blocks
+    if (blocks->bad_blocks > 0) {
+        REPORT("UFO some blocks could not be read. Quitting.\n");
+        Blocks_free(blocks);
+        return NULL;
+    }
+
+    BoroughParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(char);
+    parameters.element_ct = blocks->decompressed_size;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = blocks;
+    parameters.populate_fn = BZip2_populate;
+
+    Borough *object = (Borough *) malloc(sizeof(Borough));
+    *object = nyc_new_borough(system, &parameters);
+    
+    if (borough_is_error(object)) {
+        REPORT("NYC object could not be created.\n");
+    }    
+    return object;
+}
+
+void BZip2_nyc_free(NycCore *system, Borough *object) {   
+    // Retrieve the parameters to finalize all the user objects within.
+    BoroughParameters parameters;
+    borough_params(object, &parameters);
+
+    // Free the blocks struct
+    Blocks *data = (Blocks *) parameters.populate_data;
+    Blocks_free(data);
+
+    // Free the actual object
+    borough_free(*object);
+
+    // Free the object wrapper struct;
     free(object);
 }

@@ -90,3 +90,42 @@ int64_t *seq_normil_from_Seq(Seq data) {
 void seq_normil_free(int64_t *ptr) {
     free(ptr);
 }
+
+Borough *seq_nyc_from_length(NycCore *system, size_t from, size_t length, size_t by, size_t min_load_count) {
+    Seq data;
+    data.from = from; 
+    data.to = (length - 1) * by + from;
+    data.length = length;
+    data.by = by;
+    return seq_nyc_from_Seq(system, data, min_load_count);
+}
+Borough *seq_nyc_new(NycCore *system, size_t from, size_t to, size_t by, size_t min_load_count) {
+    Seq data;
+    data.from = from; 
+    data.to = to;
+    data.length = (to - from) / by + 1;
+    data.by = by;
+    return seq_nyc_from_Seq(system, data, min_load_count);
+}
+Borough *seq_nyc_from_Seq(NycCore *system, Seq data, size_t min_load_count) {
+    BoroughParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(int64_t);
+    parameters.element_ct = data.length;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = &data; // populate data is copied by UFO, so this should be fine.
+    parameters.populate_fn = seq_populate;
+
+    Borough *object = (Borough *) malloc(sizeof(Borough));
+    *object = nyc_new_borough(system, &parameters);
+    if (borough_is_error(object)) {
+        fprintf(stderr, "Cannot create NYC object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+void seq_nyc_free(NycCore *system, Borough *object) {    
+    borough_free(*object);
+    free(object);
+}

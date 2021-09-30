@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "ufo_c/target/ufo_c.h"
+#include "new_york/target/nyc.h"
 
 // TODO MIN_LOAD_COUNT as parameter
 
@@ -23,3 +24,8 @@ int64_t *seq_normil_new(size_t from, size_t to, size_t by);
 int64_t *seq_normil_from_length(size_t from, size_t length, size_t by);
 int64_t *seq_normil_from_Seq(Seq data);
 void seq_normil_free(int64_t *ptr);
+
+Borough *seq_nyc_from_length(NycCore *system, size_t from, size_t length, size_t by, size_t min_load_count);
+Borough *seq_nyc_new(NycCore *system, size_t from, size_t to, size_t by, size_t min_load_count);
+Borough *seq_nyc_from_Seq(NycCore *system, Seq data, size_t min_load_count);
+void seq_nyc_free(NycCore *system, Borough *ptr);

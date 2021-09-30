@@ -7,31 +7,34 @@ SOURCES_CPP = src/nycpp.cpp
 # -----------------------------------------------------------------------------
 
 UFO_C_PATH=src/ufo_c
+NEW_YORK_PATH=src/new_york
 
 # cargo will generate the output binaries for ufo-c either in a debug
 # subdirectory or a release subdirectory. We remember which.
 ifeq (${UFO_DEBUG}, 1)
 	CARGOFLAGS=+nightly build
 	UFO_C_LIB_PATH=$(UFO_C_PATH)/target/debug
+	NEW_YORK_LIB_PATH=$(NEW_YORK_PATH)/target/debug
 else
 	CARGOFLAGS=+nightly build --release
 	UFO_C_LIB_PATH=$(UFO_C_PATH)/target/release
+	NEW_YORK_LIB_PATH=$(NEW_YORK_PATH)/target/release
 endif
 
-LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lbz2 -lstdc++ $(UFO_C_LIB_PATH)/libufo_c.a 
+LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lbz2 -lstdc++ $(UFO_C_LIB_PATH)/libufo_c.a $(NEW_YORK_LIB_PATH)/libnew_york_city.a 
 ifeq (${UFO_DEBUG}, 1)
-	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
-	CXXFLAGS =           -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
+	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I$(NEW_YORK_PATH)/target/ -I/usr/include/postgresql
+	CXXFLAGS =           -Og -ggdb -fPIC -Wall -Werror -DNDEBUG -I$(UFO_C_PATH)/target/ -I$(NEW_YORK_PATH)/target/ -I/usr/include/postgresql
 else
-	CFLAGS =             -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
-	CXXFLAGS =           -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/ -I/usr/include/postgresql
+	CFLAGS =             -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/ -I$(NEW_YORK_PATH)/target/ -I/usr/include/postgresql
+	CXXFLAGS =           -O2       -fPIC -Wall -Werror          -I$(UFO_C_PATH)/target/ -I$(NEW_YORK_PATH)/target/ -I/usr/include/postgresql
 endif
 
 # TODO split CFLAGS for different wotsits
 
 # -----------------------------------------------------------------------------
 
-.PHONY: all ufo-c ufo-c-clean clean run
+.PHONY: all ufo-c ufo-c-clean clean new-york new-york-clean
 
 all: libs postgres bzip fib seq bench
 
@@ -61,7 +64,7 @@ seq: libs
 bench: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(OBJECTS_CPP) $(LFLAGS) $(LIBS) 
 
-clean: ufo-c-clean
+clean: ufo-c-clean new-york-clean
 	$(RM) src/*.o *~ $(MAIN) bench seq fib bzip postgres 
 
 ufo-c:
@@ -69,6 +72,12 @@ ufo-c:
 
 ufo-c-clean:
 	cargo clean --manifest-path=$(UFO_C_PATH)/Cargo.toml
+
+new-york:
+	cargo $(CARGOFLAGS)	--manifest-path=$(NEW_YORK_PATH)/Cargo.toml
+
+new-york-clean:
+	cargo clean --manifest-path=$(NEW_YORK_PATH)/Cargo.toml	
 
 
 # update-dependencies:

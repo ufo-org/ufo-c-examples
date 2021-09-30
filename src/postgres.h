@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "ufo_c/target/ufo_c.h"
+#include "new_york/target/nyc.h"
 
 typedef struct Player {
     int    id;
@@ -20,3 +21,6 @@ void Players_ufo_free(UfoCore *ufo_system, Players *players);
 
 Players *Players_normil_new();
 void Players_normil_free(Players *players);
+
+Borough *Players_nyc_new(NycCore *system, size_t min_load_count);
+void Players_nyc_free(NycCore *system, Borough *players);

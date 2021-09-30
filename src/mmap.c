@@ -7,8 +7,6 @@
 
 #include "logging.h"
 
-#include "ufo_c/target/ufo_c.h"
-
 typedef struct {
     char *source;
     size_t size;
@@ -127,4 +125,47 @@ MMap *MMap_normil_new(char *filename, char_map_t map_f) {
 void MMap_normil_free(MMap *mmap_object) {    
     munmap(mmap_object->data, mmap_object->size);
     free(mmap_object);
+}
+
+Borough *MMap_nyc_new(NycCore *system, char *filename, char_map_t map_f, size_t min_load_count) {
+    size_t size;
+    char *data = mmap_new(filename, &size);
+    if (data == NULL) {
+        perror("ERROR");
+        REPORT("Cannot open file %s", filename);
+        return NULL;
+    } 
+
+    MMapData *mmap = malloc(sizeof(MMapData));
+    mmap->size = size;
+    mmap->source = data;
+    mmap->map_f = map_f;
+
+    BoroughParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(char);
+    parameters.element_ct = size;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = mmap;
+    parameters.populate_fn = mmap_populate;
+
+    Borough *object = (Borough *) malloc(sizeof(Borough));
+    *object = nyc_new_borough(system, &parameters);
+    if (borough_is_error(object)) {
+        fprintf(stderr, "Cannot create NYC object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+
+void MMap_nyc_free(NycCore *system, Borough *object) {
+    BoroughParameters parameters;
+    borough_params(object, &parameters);
+    
+    MMapData *mmap = (MMapData *) parameters.populate_data;
+    munmap(mmap->source, mmap->size);    
+    free(mmap);    
+    borough_free(*object);
+    free(object);
 }

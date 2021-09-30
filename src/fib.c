@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "ufo_c/target/ufo_c.h"
+#include "new_york/target/nyc.h"
 
 typedef struct {
     uint64_t *self;
@@ -68,26 +69,6 @@ void ufo_fib_free(UfoCore *ufo_system, uint64_t *ptr) {
     ufo_free(ufo_object);
 }
 
-// int main(int argc, char *argv[]) {
-//     UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
-//     if (ufo_core_is_error(&ufo_system)) {
-//         exit(1);
-//     }
-
-//     size_t size = 100000;
-//     uint64_t *fib = ufo_fib_new(&ufo_system, size);
-//     if (fib == NULL) {
-//         exit(1);
-//     }
-//     for (size_t i = 0; i < size; i++) {
-//         printf("%lu -> %lu\n", i, fib[i]);
-//     }
-
-//     ufo_fib_free(&ufo_system, fib);
-//     ufo_core_shutdown(ufo_system);
-// }
-
-
 uint64_t *normil_fib_new(size_t n) {
     uint64_t *target = (uint64_t *) malloc(sizeof(uint64_t) * n);
 
@@ -103,4 +84,36 @@ uint64_t *normil_fib_new(size_t n) {
 
 void normil_fib_free(uint64_t * ptr) {
     free(ptr);
+}
+
+Borough *nyc_fib_new(NycCore *system, size_t n, size_t min_load_count) {
+
+    Fib *data = (Fib *) malloc(sizeof(Fib));
+    data->self = NULL;
+
+    BoroughParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(uint64_t);
+    parameters.element_ct = n;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = data;
+    parameters.populate_fn = fib_populate;
+
+    Borough *object = (Borough *) malloc(sizeof(Borough));
+    *object = nyc_new_borough(system, &parameters);
+
+    if (borough_is_error(object)) {
+        fprintf(stderr, "Cannot create NYC object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+
+void nyc_fib_free(NycCore *system, Borough *object) {    
+    BoroughParameters parameters;
+    borough_params(object, &parameters);    
+    free(parameters.populate_data);
+    borough_free(*object);
+    free(object);
 }

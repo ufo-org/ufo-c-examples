@@ -303,3 +303,68 @@ void Players_normil_free(Players *players) {
     free(players->data);
     free(players);
 }
+
+Borough *Players_nyc_new(NycCore *system, size_t min_load_count) {
+    Data *data = (Data *) malloc(sizeof(Data));
+
+    // Connect to database
+    data->database = connect_to_database("dbname = ufo"); // FIXME parameterize connection
+    if (NULL == data->database) {
+        fprintf(stderr, "Cannot connect to database.\n");
+        return NULL;
+    }
+    
+    // Get table length
+    size_t length = retrieve_size_of_table(data->database);
+
+    // Create a mutex for controling access to database
+    if (0 != pthread_mutex_init(&data->lock, NULL)) {
+        fprintf(stderr, "Cannot create NYC object query lock.\n");
+        return NULL;
+    }
+
+    // Create UFO
+    BoroughParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(Player);
+    parameters.element_ct = length;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = data;
+    parameters.populate_fn = Player_populate;
+    
+    Borough *object = (Borough *) malloc(sizeof(Borough));
+    *object = nyc_new_borough(system, &parameters);
+
+    // Check if UFO core returns an error of its own.
+    if (borough_is_error(object)) {
+        REPORT("Cannot create NYC object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+
+void Players_nyc_free(NycCore *system, Borough *object) {   
+    // Retrieve the parameters to finalize all the user objects within.
+    BoroughParameters parameters;
+    borough_params(object, &parameters);    
+    Data *data = (Data *) parameters.populate_data;
+
+    // Kill the DB connection
+    disconnect_from_database(data->database);
+
+    // Kill the mutex
+    int result = pthread_mutex_destroy(&data->lock);
+    if (result < 0) {
+        REPORT("Cannot free %p: unable to access NYC parameters: "
+               "Freeing object and closing DB connection, but not freeing "
+               "mutex.\n", object);
+        //Do not exit.
+    }
+    
+    // Free the actual object
+    borough_free(*object);
+
+    // Free the wrapper
+    free(object);
+}

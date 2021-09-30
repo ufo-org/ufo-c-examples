@@ -318,10 +318,9 @@ int main(int argc, char *argv[]) {
         object_creation = ny_fib_creation;
         object_cleanup = ny_fib_cleanup;
         execution = ny_fib_execution;        
-        max_length = fib_max_length;
+        max_length = ny_max_length;
     }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
-        printf("x.x");
         object_creation = nycpp_fib_creation;
         object_cleanup = nycpp_fib_cleanup;
         execution = nycpp_fib_execution;        
@@ -343,7 +342,7 @@ int main(int argc, char *argv[]) {
         object_creation = ny_mmap_creation;
         object_cleanup = ny_mmap_cleanup;
         execution = ny_mmap_execution;        
-        max_length = mmap_max_length;
+        max_length = ny_max_length;
     }
     if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_mmap_creation;
@@ -367,7 +366,7 @@ int main(int argc, char *argv[]) {
         object_creation = ny_bzip_creation;
         object_cleanup = ny_bzip_cleanup;
         execution = ny_bzip_execution;        
-        max_length = bzip_max_length;
+        max_length = ny_max_length;
     }
     if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_bzip_creation;
@@ -391,7 +390,7 @@ int main(int argc, char *argv[]) {
         object_creation = ny_seq_creation;
         object_cleanup = ny_seq_cleanup;
         execution = ny_seq_execution;        
-        max_length = seq_max_length;
+        max_length = ny_max_length;
     }
     if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_seq_creation;
@@ -415,7 +414,7 @@ int main(int argc, char *argv[]) {
         object_creation = ny_psql_creation;
         object_cleanup = ny_psql_cleanup;
         execution = ny_psql_execution;        
-        max_length = psql_max_length;
+        max_length = ny_max_length;
     }
     if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_psql_creation;

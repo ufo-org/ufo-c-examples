@@ -4,6 +4,7 @@
 
 void *ny_setup(Arguments *config);
 void ny_teardown(Arguments *config, AnySystem system);
+size_t ny_max_length(Arguments *config, AnySystem system, AnyObject object);
 
 void *ny_fib_creation(Arguments *config, AnySystem system);
 void *ny_bzip_creation(Arguments *config, AnySystem system);

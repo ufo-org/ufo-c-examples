@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "ufo_c/target/ufo_c.h"
+#include "new_york/target/nyc.h"
 
 #include <bzlib.h>
 
@@ -15,3 +16,6 @@ void BZip2_ufo_free(UfoCore *ufo_system, BZip2 *object);
 
 BZip2 *BZip2_normil_new(char *filename);
 void BZip2_normil_free(BZip2 *object);
+
+Borough *BZip2_nyc_new(NycCore *system, char *filename, size_t min_load_count);
+void BZip2_nyc_free(NycCore *system, Borough *object);

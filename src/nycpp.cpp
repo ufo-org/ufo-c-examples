@@ -1,15 +1,18 @@
 #include "nycpp.h"
+
 #include <iostream>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "random.h"
+
 #include "seq.h"
 #include "fib.h"
 #include "bzip.h"
+#include "mmap.h"
 #include "postgres.h"
-#include "random.h"
 
 #ifdef __cplusplus
 }
@@ -122,7 +125,7 @@ void nycpp_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     delete nycpp;
 }
 void nycpp_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
-    Players *players = (Players *) object;    
+    NYCpp<Player> *nycpp = (NYCpp<Player> *) object;    
     int64_t tds = 0;
     int64_t mvp = 0;
     SequenceResult result;
@@ -132,12 +135,41 @@ void nycpp_psql_execution(Arguments *config, AnySystem system, AnyObject object,
             break;
         }        
         if (result.write) {
-            players->data[result.current].tds = random_int(100);
-            players->data[result.current].mvp = random_int(100);
+            (*nycpp)[result.current].tds = random_int(100);
+            (*nycpp)[result.current].mvp = random_int(100);
         } else {
-            tds += players->data[result.current].tds;
-            mvp += players->data[result.current].mvp;
+            tds += (*nycpp)[result.current].tds;
+            mvp += (*nycpp)[result.current].mvp;
         }
     };
     *oubliette = tds + mvp;
+}
+
+// MMap
+void *nycpp_mmap_creation(Arguments *config, AnySystem system) {
+    MMap *mmap =  MMap_normil_new(config->file, toupper); 
+    NYCpp<char> *nycpp = new NYCpp<char>(mmap->size, mmap->data);
+    free(mmap);
+    return (void *) nycpp;
+}
+void nycpp_mmap_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    NYCpp<char> *nycpp = (NYCpp<char> *) object;
+    delete nycpp;
+}
+void nycpp_mmap_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
+    NYCpp<char> *nycpp = (NYCpp<char> *) object;    
+    uint64_t sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);        
+        if (result.end) {
+            break;
+        }        
+        if (result.write) {
+            (*nycpp)[result.current] = random_int(126 - 32) + 32;
+        } else {
+            sum += (*nycpp)[result.current];
+        }
+    };
+    *oubliette = sum;
 }

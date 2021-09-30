@@ -1,7 +1,7 @@
 # You can set UFO_DEBUG=1 or UFO_DEBUG=0 in the environment to compile with or
 # without debug symbols (this affects both the C and the Rust code).
 
-SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c src/seq.c src/random.c
+SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c src/seq.c src/random.c src/mmap.c src/ufo.c src/nyc.c src/normil.c
 SOURCES_CPP = src/nycpp.cpp
 
 # -----------------------------------------------------------------------------
@@ -54,6 +54,9 @@ fib: libs
 
 seq: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o seq src/seq.o $(LFLAGS) $(LIBS) src/seq_example.c
+
+# mmap: libs
+# 	$(CC) $(CFLAGS) $(INCLUDES) -o mmap src/mmap.o $(LFLAGS) $(LIBS) src/mmap_example.c
 
 bench: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(OBJECTS_CPP) $(LFLAGS) $(LIBS) 

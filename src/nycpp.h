@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include "bench.h"
+#include "postgres.h"
 
 #ifdef __cplusplus
 }
@@ -16,7 +17,7 @@ extern "C" {
 #include <memory>
 #include <stdlib.h>
 
-template <class T>
+template< typename T >
 class NYCpp {
     public:
     NYCpp(size_t n, T* data): size(n), inner(data) {}
@@ -32,6 +33,7 @@ class NYCpp {
     T *inner;    
 };
 
+
 #endif
 
 #ifdef __cplusplus
@@ -46,18 +48,21 @@ void *nycpp_fib_creation  (Arguments *config, AnySystem system);
 void *nycpp_bzip_creation (Arguments *config, AnySystem system);
 void *nycpp_seq_creation  (Arguments *config, AnySystem system);
 void *nycpp_psql_creation (Arguments *config, AnySystem system);
+void *nycpp_mmap_creation (Arguments *config, AnySystem system);
 
 void  nycpp_seq_cleanup   (Arguments *config, AnySystem system, AnyObject object);
 void  nycpp_fib_cleanup   (Arguments *config, AnySystem system, AnyObject object); 
 void  nycpp_bzip_cleanup  (Arguments *config, AnySystem system, AnyObject object);
 void  nycpp_seq_cleanup   (Arguments *config, AnySystem system, AnyObject object);
 void  nycpp_psql_cleanup  (Arguments *config, AnySystem system, AnyObject object);
+void  nycpp_mmap_cleanup  (Arguments *config, AnySystem system, AnyObject object);
 
 void  nycpp_seq_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 void  nycpp_fib_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 void  nycpp_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 void  nycpp_seq_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 void  nycpp_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
+void  nycpp_mmap_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 
 #ifdef __cplusplus
 }

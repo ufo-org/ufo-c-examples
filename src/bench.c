@@ -7,14 +7,20 @@
 #include <locale.h>
 
 #include "ufo_c/target/ufo_c.h"
-#include "timing.h"
 
+#include "timing.h"
 #include "logging.h"
+#include "random.h"
+
 #include "seq.h"
 #include "fib.h"
 #include "bzip.h"
+#include "mmap.h"
 #include "postgres.h"
-#include "random.h"
+
+#include "ufo.h"
+#include "normil.h"
+#include "nyc.h"
 #include "nycpp.h"
 
 #include "bench.h"
@@ -47,144 +53,7 @@ static error_t parse_opt (int key, char *value, struct argp_state *state) {
     return 0;
 }
 
-// SETUP
-void *ufo_setup(Arguments *config) {
-    UfoCore ufo_system = ufo_new_core("/tmp/", config->high_water_mark, config->low_water_mark);
-    if (ufo_core_is_error(&ufo_system)) {
-        REPORT("Cannot create UFO core system.\n");
-        exit(1);
-    }
-    UfoCore *ptr = (UfoCore *) malloc(sizeof(UfoCore));
-    *ptr = ufo_system;
-    return ptr;
-}
-void *normil_setup(Arguments *config) {
-    return NULL;
-}
-void *ny_setup(Arguments *config) {
-    REPORT("ny_setup unimplemented!\n");
-    exit(99);
-}
 
-// TEARDOWN
-void ufo_teardown(Arguments *config, AnySystem system) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    ufo_core_shutdown(*ufo_system_ptr);
-    free(ufo_system_ptr);
-}
-void normil_teardown(Arguments *config, AnySystem system) {
-    /* empty */
-}
-void ny_teardown(Arguments *config, AnySystem system) {
-    printf("ny_teardown unimplemented!\n");
-    exit(99);
-}
-
-// OBJECT CREATION
-// Fibonacci
-void *normil_fib_creation(Arguments *config, AnySystem system) {
-    return (void *) normil_fib_new(config->size);
-}
-void *ufo_fib_creation(Arguments *config, AnySystem system) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    return (void *) ufo_fib_new(ufo_system_ptr, config->size, config->writes == 0, config->min_load);
-}
-void *ny_fib_creation(Arguments *config, AnySystem system) {
-    REPORT("ny_fib_creation unimplemented!\n");
-    exit(99);
-}
-
-// BZip
-void *normil_bzip_creation(Arguments *config, AnySystem system) {
-    return (void *) BZip2_normil_new(config->file);
-}
-void *ufo_bzip_creation(Arguments *config, AnySystem system) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    return (void *) BZip2_ufo_new(ufo_system_ptr, config->file, config->writes == 0, config->min_load);
-}
-void *ny_bzip_creation(Arguments *config, AnySystem system) {
-    REPORT("ny_bzip_creation unimplemented!\n");
-    exit(99);
-}
-
-// Seq
-void *normil_seq_creation(Arguments *config, AnySystem system) {
-    return (void *) seq_normil_from_length(1, config->size, 2);
-}
-void *ufo_seq_creation(Arguments *config, AnySystem system) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    return (void *) seq_ufo_from_length(ufo_system_ptr, 1, config->size, 2, config->writes == 0, config->min_load);
-}
-void *ny_seq_creation(Arguments *config, AnySystem system) {
-    REPORT("ny_seq_creation unimplemented!\n");
-    exit(99);
-}
-
-// Psql
-void *normil_psql_creation(Arguments *config, AnySystem system) {
-    return (void *) Players_normil_new();
-}
-void *ufo_psql_creation(Arguments *config, AnySystem system) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    return (void *) Players_ufo_new(ufo_system_ptr, config->writes == 0, config->min_load);
-}
-void *ny_psql_creation(Arguments *config, AnySystem system) {
-    REPORT("ny_psql_creation unimplemented!\n");
-    exit(99);
-}
-
-// OBJECT CLEANUP
-// Fibonacci
-void normil_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    normil_fib_free(object);
-}
-void ufo_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    ufo_fib_free(ufo_system_ptr, object);
-}
-void ny_fib_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    REPORT("ny_fib_cleanup unimplemented!\n");
-    exit(99);
-}
-
-// BZip
-void normil_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    BZip2_normil_free(object);
-}
-void ufo_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    BZip2_ufo_free(ufo_system_ptr, object);
-}
-void ny_bzip_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    REPORT("ny_bzip_cleanup unimplemented!\n");
-    exit(99);
-}
-
-// Seq
-void normil_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    seq_normil_free(object);
-}
-void ufo_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    seq_ufo_free(ufo_system_ptr, object);
-}
-void ny_seq_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    REPORT("ny_seq_cleanup unimplemented!\n");
-    exit(99);
-}
-
-// Psql
-void normil_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    Players_normil_free(object);
-}
-void ufo_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    UfoCore *ufo_system_ptr = (UfoCore *) system;
-    Players_ufo_free(ufo_system_ptr, object);
-}
-void ny_psql_cleanup(Arguments *config, AnySystem system, AnyObject object) {
-    REPORT("ny_psql_cleanup unimplemented!\n");
-    exit(99);
-}
 
 // Sequence iterators
 typedef struct { 
@@ -247,6 +116,10 @@ size_t psql_max_length(Arguments *config, AnySystem system, AnyObject object) {
     Players *players = (Players *) object;
     return players->size;
 }
+size_t mmap_max_length(Arguments *config, AnySystem system, AnyObject object) {
+    MMap *mmap = (MMap *) object;
+    return mmap->size;
+}
 
 // EXECUTION
 // Fibonacci
@@ -267,10 +140,6 @@ void fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySeq
     };
     *oubliette = sum;
 }
-void ny_fib_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
-    REPORT("ny_fib_execution not implemented!\n");
-    exit(43); 
-}
 
 // BZip2
 void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
@@ -290,10 +159,6 @@ void bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySe
     };
     *oubliette = sum;
 }
-void ny_bzip_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
-    REPORT("ny_bzip_execution not implemented!\n");
-    exit(43); 
-}
 
 // Seq
 void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
@@ -312,10 +177,6 @@ void seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySeq
         }
     };
     *oubliette = sum;
-}
-void ny_seq_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
-    REPORT("ny_fib_execution not implemented!\n");
-    exit(43); 
 }
 
 // PSQL
@@ -339,9 +200,24 @@ void psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySe
     };
     *oubliette = tds + mvp;
 }
-void ny_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
-    REPORT("ny_psql_execution not implemented!\n");
-    exit(43); 
+
+// MMap
+void mmap_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
+    MMap *bzip = (MMap *) object;    
+    uint64_t sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);        
+        if (result.end) {
+            break;
+        }        
+        if (result.write) {
+            bzip->data[result.current] = random_int(126 - 32) + 32;
+        } else {
+            sum += bzip->data[result.current];
+        }
+    };
+    *oubliette = sum;
 }
 
 // MAIN
@@ -366,7 +242,7 @@ int main(int argc, char *argv[]) {
     static char doc[] = "UFO performance benchmark utility.";
     static char args_doc[] = "";
     static struct argp_option options[] = {
-        {"benchmark",       'b', "BENCHMARK",      0,  "Benchmark (populate function) to run: seq, fib, psql, or bzip"},
+        {"benchmark",       'b', "BENCHMARK",      0,  "Benchmark (populate function) to run: seq, fib, mmap, psql, or bzip"},
         {"implementation",  'i', "IMPL",           0,  "Implementation to run: ufo , ny, nyc++, normil"},
         {"pattern",         'p', "FILE",           0,  "Read pattern: scan, random"},
         {"sample-size",     'n', "FILE",           0,  "How many elements to read from vector: zero for all"},
@@ -456,6 +332,30 @@ int main(int argc, char *argv[]) {
         object_cleanup = normil_fib_cleanup;
         execution = fib_execution;        
         max_length = fib_max_length;
+    }
+    if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
+        object_creation = ufo_mmap_creation;
+        object_cleanup = ufo_mmap_cleanup;
+        execution = mmap_execution;        
+        max_length = mmap_max_length;
+    }
+    if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+        object_creation = ny_mmap_creation;
+        object_cleanup = ny_mmap_cleanup;
+        execution = ny_mmap_execution;        
+        max_length = mmap_max_length;
+    }
+    if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
+        object_creation = nycpp_mmap_creation;
+        object_cleanup = nycpp_mmap_cleanup;
+        execution = nycpp_mmap_execution;        
+        max_length = mmap_max_length;
+    }
+    if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "normil") == 0)) {
+        object_creation = normil_mmap_creation;
+        object_cleanup = normil_mmap_cleanup;
+        execution = mmap_execution;        
+        max_length = mmap_max_length;
     }
     if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
         object_creation = ufo_bzip_creation;
@@ -636,6 +536,7 @@ int main(int argc, char *argv[]) {
     INFO("  * execution:       %12luns\n", execution_elapsed_time);
     INFO("  * object_cleanup:  %12luns\n", object_cleanup_elapsed_time);
     INFO("  * object_teardown: %12luns\n", system_teardown_elapsed_time);
+    INFO("  * oubliette:       %12lins\n", oubliette);
 
     // Various cleanup
     free(sequence);

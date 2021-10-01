@@ -41,7 +41,7 @@ all: libs postgres bzip fib seq bench
 OBJECTS = $(SOURCES_C:.c=.o)
 OBJECTS_CPP = $(SOURCES_CPP:.cpp=.o)
 
-libs: ufo-c $(OBJECTS) $(OBJECTS_CPP)
+libs: ufo-c new-york $(OBJECTS) $(OBJECTS_CPP)
 
 example: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o example $(LFLAGS) $(LIBS) src/example.c

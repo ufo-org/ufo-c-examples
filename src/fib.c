@@ -13,6 +13,7 @@ typedef struct {
 
 int32_t fib_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target_bytes) {
     Fib *data = (Fib *) user_data;
+    printf("poppp %p\n", user_data);
     uint64_t *target = (uint64_t *) target_bytes;
 
     target[0] = (start == 0) ? 1 : data->self[start-1] + data->self[start-2];
@@ -99,6 +100,8 @@ Borough *nyc_fib_new(NycCore *system, size_t n, size_t min_load_count) {
     parameters.populate_data = data;
     parameters.populate_fn = fib_populate;
 
+    printf("vv %p\n", parameters.populate_data);
+
     Borough *object = (Borough *) malloc(sizeof(Borough));
     *object = nyc_new_borough(system, &parameters);
 
@@ -110,10 +113,17 @@ Borough *nyc_fib_new(NycCore *system, size_t n, size_t min_load_count) {
     return object;
 }
 
-void nyc_fib_free(NycCore *system, Borough *object) {    
+void nyc_fib_free(NycCore *system, Borough *object) { 
+    printf("oo\n");   
     BoroughParameters parameters;
-    borough_params(object, &parameters);    
+    printf("ww in %p\n", &parameters);
+    borough_params(object, &parameters);
+    printf("vv %p\n", &parameters);
+    printf("vv %p\n", parameters.populate_data);
     free(parameters.populate_data);
+    printf("xx\n");
     borough_free(*object);
+    printf("yy\n");
     free(object);
+    printf("zz\n");
 }

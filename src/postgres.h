@@ -1,7 +1,10 @@
 #pragma once
+
 #include <stdint.h>
+
 #include "ufo_c/target/ufo_c.h"
 #include "new_york/target/nyc.h"
+#include "toronto/target/toronto.h"
 
 typedef struct Player {
     int    id;
@@ -24,3 +27,6 @@ void Players_normil_free(Players *players);
 
 Borough *Players_nyc_new(NycCore *system, size_t min_load_count);
 void Players_nyc_free(NycCore *system, Borough *players);
+
+Village *Players_toronto_new(TorontoCore *system, size_t min_load_count);
+void Players_toronto_free(TorontoCore *system, Village *players);

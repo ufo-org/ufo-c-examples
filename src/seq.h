@@ -1,8 +1,10 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+
 #include "ufo_c/target/ufo_c.h"
 #include "new_york/target/nyc.h"
+#include "toronto/target/toronto.h"
 
 // TODO MIN_LOAD_COUNT as parameter
 
@@ -29,3 +31,8 @@ Borough *seq_nyc_from_length(NycCore *system, size_t from, size_t length, size_t
 Borough *seq_nyc_new(NycCore *system, size_t from, size_t to, size_t by, size_t min_load_count);
 Borough *seq_nyc_from_Seq(NycCore *system, Seq data, size_t min_load_count);
 void seq_nyc_free(NycCore *system, Borough *ptr);
+
+Village *seq_toronto_from_length(TorontoCore *system, size_t from, size_t length, size_t by, size_t min_load_count);
+Village *seq_toronto_new(TorontoCore *system, size_t from, size_t to, size_t by, size_t min_load_count);
+Village *seq_toronto_from_Seq(TorontoCore *system, Seq data, size_t min_load_count);
+void seq_toronto_free(TorontoCore *system, Village *object);

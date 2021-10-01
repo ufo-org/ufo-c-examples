@@ -368,3 +368,68 @@ void Players_nyc_free(NycCore *system, Borough *object) {
     // Free the wrapper
     free(object);
 }
+
+Village *Players_toronto_new(TorontoCore *system, size_t min_load_count) {
+    Data *data = (Data *) malloc(sizeof(Data));
+
+    // Connect to database
+    data->database = connect_to_database("dbname = ufo"); // FIXME parameterize connection
+    if (NULL == data->database) {
+        fprintf(stderr, "Cannot connect to database.\n");
+        return NULL;
+    }
+    
+    // Get table length
+    size_t length = retrieve_size_of_table(data->database);
+
+    // Create a mutex for controling access to database
+    if (0 != pthread_mutex_init(&data->lock, NULL)) {
+        fprintf(stderr, "Cannot create TORONTO object query lock.\n");
+        return NULL;
+    }
+
+    // Create UFO
+    VillageParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(Player);
+    parameters.element_ct = length;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = data;
+    parameters.populate_fn = Player_populate;
+    
+    Village *object = (Village *) malloc(sizeof(Village));
+    *object = toronto_new_village(system, &parameters);
+
+    // Check if UFO core returns an error of its own.
+    if (village_is_error(object)) {
+        REPORT("Cannot create TORONTO object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+
+void Players_toronto_free(TorontoCore *system, Village *object) {   
+    // Retrieve the parameters to finalize all the user objects within.
+    VillageParameters parameters;
+    village_params(object, &parameters);    
+    Data *data = (Data *) parameters.populate_data;
+
+    // Kill the DB connection
+    disconnect_from_database(data->database);
+
+    // Kill the mutex
+    int result = pthread_mutex_destroy(&data->lock);
+    if (result < 0) {
+        REPORT("Cannot free %p: unable to access TORONTO parameters: "
+               "Freeing object and closing DB connection, but not freeing "
+               "mutex.\n", object);
+        //Do not exit.
+    }
+    
+    // Free the actual object
+    village_free(*object);
+
+    // Free the wrapper
+    free(object);
+}

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "ufo_c/target/ufo_c.h"
+
 #include "seq.h"
 
 int32_t seq_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target_bytes) {
@@ -127,5 +127,45 @@ Borough *seq_nyc_from_Seq(NycCore *system, Seq data, size_t min_load_count) {
 }
 void seq_nyc_free(NycCore *system, Borough *object) {    
     borough_free(*object);
+    free(object);
+}
+
+
+Village *seq_toronto_from_length(TorontoCore *system, size_t from, size_t length, size_t by, size_t min_load_count) {
+    Seq data;
+    data.from = from; 
+    data.to = (length - 1) * by + from;
+    data.length = length;
+    data.by = by;
+    return seq_toronto_from_Seq(system, data, min_load_count);
+}
+Village *seq_toronto_new(TorontoCore *system, size_t from, size_t to, size_t by, size_t min_load_count) {
+    Seq data;
+    data.from = from; 
+    data.to = to;
+    data.length = (to - from) / by + 1;
+    data.by = by;
+    return seq_toronto_from_Seq(system, data, min_load_count);
+}
+Village *seq_toronto_from_Seq(TorontoCore *system, Seq data, size_t min_load_count) {
+    VillageParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(int64_t);
+    parameters.element_ct = data.length;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = &data; // populate data is copied by UFO, so this should be fine.
+    parameters.populate_fn = seq_populate;
+
+    Village *object = (Village *) malloc(sizeof(Village));
+    *object = toronto_new_village(system, &parameters);
+    if (village_is_error(object)) {
+        fprintf(stderr, "Cannot create NYC object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+void seq_toronto_free(TorontoCore *system, Village *object) {    
+    village_free(*object);
     free(object);
 }

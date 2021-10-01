@@ -12,7 +12,8 @@ To update the submodules, pull them.
 
 ```bash
 cd src/ufo_c && git pull origin main && cd ../.. && \
-cd src/new_york && git pull origin main && cd ../..
+cd src/new_york && git pull origin main && cd ../.. && \
+cd src/toronto && git pull origin main && cd ../..
 ```
 
 Then build all packages:

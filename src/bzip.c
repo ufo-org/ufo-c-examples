@@ -1152,3 +1152,46 @@ void BZip2_nyc_free(NycCore *system, Borough *object) {
     // Free the object wrapper struct;
     free(object);
 }
+
+Village *BZip2_toronto_new(TorontoCore *system, char *filename, size_t min_load_count) {
+    Blocks *blocks = Blocks_new(filename);
+    
+    // Check for bad blocks
+    if (blocks->bad_blocks > 0) {
+        REPORT("UFO some blocks could not be read. Quitting.\n");
+        Blocks_free(blocks);
+        return NULL;
+    }
+
+    VillageParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(char);
+    parameters.element_ct = blocks->decompressed_size;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = blocks;
+    parameters.populate_fn = BZip2_populate;
+
+    Village *object = (Village *) malloc(sizeof(Village));
+    *object = toronto_new_village(system, &parameters);
+    
+    if (village_is_error(object)) {
+        REPORT("TORONTO object could not be created.\n");
+    }    
+    return object;
+}
+
+void BZip2_toronto_free(TorontoCore *system, Village *object) {   
+    // Retrieve the parameters to finalize all the user objects within.
+    VillageParameters parameters;
+    village_params(object, &parameters);
+
+    // Free the blocks struct
+    Blocks *data = (Blocks *) parameters.populate_data;
+    Blocks_free(data);
+
+    // Free the actual object
+    village_free(*object);
+
+    // Free the object wrapper struct;
+    free(object);
+}

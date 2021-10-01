@@ -6,6 +6,7 @@
 
 #include "ufo_c/target/ufo_c.h"
 #include "new_york/target/nyc.h"
+#include "toronto/target/toronto.h"
 
 typedef int(*char_map_t)(int);
 
@@ -25,3 +26,6 @@ void MMap_normil_free(MMap *ptr);
 
 Borough *MMap_nyc_new(NycCore *system, char *filename, char_map_t map_f, size_t min_load_count);
 void MMap_nyc_free(NycCore *system, Borough *object);
+
+Village *MMap_toronto_new(TorontoCore *system, char *filename, char_map_t map_f, size_t min_load_count);
+void MMap_toronto_free(TorontoCore *system, Village *object);

@@ -21,6 +21,7 @@
 #include "ufo.h"
 #include "normil.h"
 #include "nyc.h"
+#include "toronto.h"
 #include "nycpp.h"
 
 #include "bench.h"
@@ -289,6 +290,10 @@ int main(int argc, char *argv[]) {
         system_setup = &ny_setup;
         system_teardown = &ny_teardown;
     }
+    if (strcmp(config.implementation, "toronto") == 0) {
+        system_setup = &toronto_setup;
+        system_teardown = &toronto_teardown;
+    }
     if (strcmp(config.implementation, "nyc++") == 0) {
         system_setup = &nycpp_setup;
         system_teardown = &nycpp_teardown;
@@ -320,6 +325,12 @@ int main(int argc, char *argv[]) {
         execution = ny_fib_execution;        
         max_length = ny_max_length;
     }
+    if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "toronto") == 0)) {
+        object_creation = toronto_fib_creation;
+        object_cleanup = toronto_fib_cleanup;
+        execution = toronto_fib_execution;        
+        max_length = toronto_max_length;
+    }
     if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_fib_creation;
         object_cleanup = nycpp_fib_cleanup;
@@ -343,6 +354,12 @@ int main(int argc, char *argv[]) {
         object_cleanup = ny_mmap_cleanup;
         execution = ny_mmap_execution;        
         max_length = ny_max_length;
+    }
+    if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "toronto") == 0)) {
+        object_creation = toronto_mmap_creation;
+        object_cleanup = toronto_mmap_cleanup;
+        execution = toronto_mmap_execution;        
+        max_length = toronto_max_length;
     }
     if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_mmap_creation;
@@ -368,6 +385,12 @@ int main(int argc, char *argv[]) {
         execution = ny_bzip_execution;        
         max_length = ny_max_length;
     }
+    if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "toronto") == 0)) {
+        object_creation = toronto_bzip_creation;
+        object_cleanup = toronto_bzip_cleanup;
+        execution = toronto_bzip_execution;        
+        max_length = toronto_max_length;
+    }
     if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_bzip_creation;
         object_cleanup = nycpp_bzip_cleanup;
@@ -392,6 +415,12 @@ int main(int argc, char *argv[]) {
         execution = ny_seq_execution;        
         max_length = ny_max_length;
     }
+    if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "toronto") == 0)) {
+        object_creation = toronto_seq_creation;
+        object_cleanup = toronto_seq_cleanup;
+        execution = toronto_seq_execution;        
+        max_length = toronto_max_length;
+    }
     if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_seq_creation;
         object_cleanup = nycpp_seq_cleanup;
@@ -415,6 +444,12 @@ int main(int argc, char *argv[]) {
         object_cleanup = ny_psql_cleanup;
         execution = ny_psql_execution;        
         max_length = ny_max_length;
+    }
+    if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "toronto") == 0)) {
+        object_creation = toronto_psql_creation;
+        object_cleanup = toronto_psql_cleanup;
+        execution = toronto_psql_execution;        
+        max_length = toronto_max_length;
     }
     if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
         object_creation = nycpp_psql_creation;

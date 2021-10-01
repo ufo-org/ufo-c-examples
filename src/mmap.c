@@ -169,3 +169,46 @@ void MMap_nyc_free(NycCore *system, Borough *object) {
     borough_free(*object);
     free(object);
 }
+
+Village *MMap_toronto_new(TorontoCore *system, char *filename, char_map_t map_f, size_t min_load_count) {
+    size_t size;
+    char *data = mmap_new(filename, &size);
+    if (data == NULL) {
+        perror("ERROR");
+        REPORT("Cannot open file %s", filename);
+        return NULL;
+    } 
+
+    MMapData *mmap = malloc(sizeof(MMapData));
+    mmap->size = size;
+    mmap->source = data;
+    mmap->map_f = map_f;
+
+    VillageParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(char);
+    parameters.element_ct = size;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = mmap;
+    parameters.populate_fn = mmap_populate;
+
+    Village *object = (Village *) malloc(sizeof(Village));
+    *object = toronto_new_village(system, &parameters);
+    if (village_is_error(object)) {
+        fprintf(stderr, "Cannot create TORONTO object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+
+void MMap_toronto_free(TorontoCore *system, Village *object) {
+    VillageParameters parameters;
+    village_params(object, &parameters);
+    
+    MMapData *mmap = (MMapData *) parameters.populate_data;
+    munmap(mmap->source, mmap->size);    
+    free(mmap);    
+    village_free(*object);
+    free(object);
+}

@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "ufo_c/target/ufo_c.h"
-#include "new_york/target/nyc.h"
-
 typedef struct {
     uint64_t *self;
 } Fib;
@@ -126,4 +123,36 @@ void nyc_fib_free(NycCore *system, Borough *object) {
     printf("yy\n");
     free(object);
     printf("zz\n");
+}
+
+Village *toronto_fib_new(TorontoCore *system, size_t n, size_t min_load_count) {
+
+    Fib *data = (Fib *) malloc(sizeof(Fib));
+    data->self = NULL;
+
+    VillageParameters parameters;
+    parameters.header_size = 0;
+    parameters.element_size = strideOf(uint64_t);
+    parameters.element_ct = n;
+    parameters.min_load_ct = min_load_count;
+    parameters.populate_data = data;
+    parameters.populate_fn = fib_populate;
+
+    Village *object = (Village *) malloc(sizeof(Village));
+    *object = toronto_new_village(system, &parameters);
+
+    if (village_is_error(object)) {
+        fprintf(stderr, "Cannot create TORONTO object.\n");
+        return NULL;
+    }
+
+    return object;
+}
+
+void toronto_fib_free(TorontoCore *system, Village *object) { 
+    VillageParameters parameters;
+    village_params(object, &parameters);
+    free(parameters.populate_data);
+    village_free(*object);
+    free(object);
 }

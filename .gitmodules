@@ -4,3 +4,6 @@
 [submodule "src/new_york"]
 	path = src/new_york
 	url = https://github.com/ufo-org/newYork
+[submodule "src/toronto"]
+	path = src/toronto
+	url = https://github.com/ufo-org/toronto

@@ -8,10 +8,10 @@ Before building, retrievew the code of submodules:
 git submodule update --init --recursive
 ```
 
-To update the submodule, pull it.
+To update the submodules, pull them.
 
 ```bash
-cd src/ufo_c && git pull origin main && cd ../..
+cd src/ufo_c && git pull origin main && cd ../.. && \
 cd src/new_york && git pull origin main && cd ../..
 ```
 

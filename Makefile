@@ -38,7 +38,7 @@ endif
 
 .PHONY: all ufo-c ufo-c-clean clean new-york new-york-clean toronto toronto-clean
 
-all: libs postgres bzip fib seq bench
+all: libs bench postgres bzip fib seq
 
 OBJECTS = $(SOURCES_C:.c=.o)
 OBJECTS_CPP = $(SOURCES_CPP:.cpp=.o)

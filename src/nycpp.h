@@ -49,6 +49,7 @@ void *nycpp_bzip_creation (Arguments *config, AnySystem system);
 void *nycpp_seq_creation  (Arguments *config, AnySystem system);
 void *nycpp_psql_creation (Arguments *config, AnySystem system);
 void *nycpp_mmap_creation (Arguments *config, AnySystem system);
+void *nycpp_col_creation  (Arguments *config, AnySystem system);
 
 void  nycpp_seq_cleanup   (Arguments *config, AnySystem system, AnyObject object);
 void  nycpp_fib_cleanup   (Arguments *config, AnySystem system, AnyObject object); 
@@ -56,6 +57,7 @@ void  nycpp_bzip_cleanup  (Arguments *config, AnySystem system, AnyObject object
 void  nycpp_seq_cleanup   (Arguments *config, AnySystem system, AnyObject object);
 void  nycpp_psql_cleanup  (Arguments *config, AnySystem system, AnyObject object);
 void  nycpp_mmap_cleanup  (Arguments *config, AnySystem system, AnyObject object);
+void  nycpp_col_cleanup   (Arguments *config, AnySystem system, AnyObject object);
 
 void  nycpp_seq_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 void  nycpp_fib_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
@@ -63,6 +65,7 @@ void  nycpp_bzip_execution(Arguments *config, AnySystem system, AnyObject object
 void  nycpp_seq_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 void  nycpp_psql_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 void  nycpp_mmap_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
+void  nycpp_col_execution (Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette);
 
 #ifdef __cplusplus
 }

@@ -7,6 +7,8 @@
 #include "bzip.h"
 #include "mmap.h"
 #include "postgres.h"
+#include "col.h"
+
 #include "new_york/target/nyc.h"
 
 #include "random.h"
@@ -182,6 +184,44 @@ void ny_mmap_execution(Arguments *config, AnySystem system, AnyObject object, An
             borough_write(borough, result.current, &value);
         } else {
             char value;
+            borough_read(borough, result.current, &value);
+            sum += value;
+        }
+    };
+    *oubliette = sum;
+}
+
+// Col
+void *ny_col_creation(Arguments *config, AnySystem system) {
+    NycCore *nyc_system = (NycCore *) system;
+    int32_t **matrix = col_source_matrix_new(config->size, COL_COLUMNS_IN_EACH_ROW);
+    return (void *) col_nyc_new(nyc_system, matrix, COL_SELECTED_COLUMN, config->size, config->min_load);
+}
+void ny_col_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    NycCore *nyc_system = (NycCore *) system;
+    Borough *nyc_object = (Borough *) object;
+
+    BoroughParameters parameters;
+    borough_params(nyc_object, &parameters);
+    ColumnSpec *spec = (ColumnSpec *) parameters.populate_data;
+    col_source_matrix_free(spec->source, spec->size);
+
+    col_nyc_free(nyc_system, nyc_object);   
+}
+void ny_col_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
+    Borough *borough = (Borough *) object; 
+    int64_t sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);     
+        if (result.end) {
+            break;
+        }        
+        if (result.write) {
+            int32_t value = (int32_t) random_int(1000);
+            borough_write(borough, result.current, &value);
+        } else {
+            int32_t value;
             borough_read(borough, result.current, &value);
             sum += value;
         }

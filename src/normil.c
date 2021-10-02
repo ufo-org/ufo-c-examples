@@ -7,6 +7,7 @@
 #include "bzip.h"
 #include "mmap.h"
 #include "postgres.h"
+#include "col.h"
 
 #include "logging.h"
 
@@ -56,4 +57,15 @@ void *normil_mmap_creation(Arguments *config, AnySystem system) {
 }
 void normil_mmap_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     MMap_normil_free(object);
+}
+
+// Col
+void *normil_col_creation(Arguments *config, AnySystem system) {
+    int32_t **matrix = col_source_matrix_new(config->size, COL_COLUMNS_IN_EACH_ROW);
+    int32_t *result = col_normil_new(matrix, COL_SELECTED_COLUMN, config->size);
+    col_source_matrix_free(matrix, config->size);
+    return (void *) result;
+}
+void normil_col_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    col_normil_free(object);   
 }

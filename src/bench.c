@@ -54,8 +54,6 @@ static error_t parse_opt (int key, char *value, struct argp_state *state) {
     return 0;
 }
 
-
-
 // Sequence iterators
 typedef struct { 
     size_t current; 
@@ -120,6 +118,9 @@ size_t psql_max_length(Arguments *config, AnySystem system, AnyObject object) {
 size_t mmap_max_length(Arguments *config, AnySystem system, AnyObject object) {
     MMap *mmap = (MMap *) object;
     return mmap->size;
+}
+size_t col_max_length(Arguments *config, AnySystem system, AnyObject object) {
+    return config->size;
 }
 
 // EXECUTION
@@ -216,6 +217,25 @@ void mmap_execution(Arguments *config, AnySystem system, AnyObject object, AnySe
             bzip->data[result.current] = random_int(126 - 32) + 32;
         } else {
             sum += bzip->data[result.current];
+        }
+    };
+    *oubliette = sum;
+}
+
+// Col
+void col_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
+    int32_t *data = (int32_t *) object;    
+    int64_t sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);        
+        if (result.end) {
+            break;
+        }        
+        if (result.write) {
+            data[result.current] = random_int(1000);
+        } else {
+            sum += data[result.current];
         }
     };
     *oubliette = sum;
@@ -462,6 +482,36 @@ int main(int argc, char *argv[]) {
         object_cleanup = normil_psql_cleanup;
         execution = psql_execution;        
         max_length = psql_max_length;
+    }
+        if ((strcmp(config.benchmark, "col") == 0) && (strcmp(config.implementation, "ufo") == 0)) {
+        object_creation = ufo_col_creation;
+        object_cleanup = ufo_col_cleanup;
+        execution = col_execution;
+        max_length = col_max_length;
+    }
+    if ((strcmp(config.benchmark, "col") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+        object_creation = ny_col_creation;
+        object_cleanup = ny_col_cleanup;
+        execution = ny_col_execution;        
+        max_length = ny_max_length;
+    }
+    if ((strcmp(config.benchmark, "col") == 0) && (strcmp(config.implementation, "toronto") == 0)) {
+        object_creation = toronto_col_creation;
+        object_cleanup = toronto_col_cleanup;
+        execution = toronto_col_execution;        
+        max_length = toronto_max_length;
+    }
+    if ((strcmp(config.benchmark, "col") == 0) && (strcmp(config.implementation, "nyc++") == 0)) {
+        object_creation = nycpp_col_creation;
+        object_cleanup = nycpp_col_cleanup;
+        execution = nycpp_col_execution;        
+        max_length = col_max_length;
+    }
+    if ((strcmp(config.benchmark, "col") == 0) && (strcmp(config.implementation, "normil") == 0)) {
+        object_creation = normil_col_creation;
+        object_cleanup = normil_col_cleanup;
+        execution = col_execution;        
+        max_length = col_max_length;
     }
     if (object_creation == NULL || object_cleanup == NULL) {
         REPORT("Unknown benchmark/implementation combination \"%s\"/\"%s\"\n", 

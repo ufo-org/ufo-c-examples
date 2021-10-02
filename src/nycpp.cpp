@@ -7,12 +7,14 @@ extern "C" {
 #endif
 
 #include "random.h"
+#include "logging.h"
 
 #include "seq.h"
 #include "fib.h"
 #include "bzip.h"
 #include "mmap.h"
 #include "postgres.h"
+#include "col.h"
 
 #ifdef __cplusplus
 }
@@ -172,4 +174,18 @@ void nycpp_mmap_execution(Arguments *config, AnySystem system, AnyObject object,
         }
     };
     *oubliette = sum;
+}
+
+// Col
+void *nycpp_col_creation(Arguments *config, AnySystem system) {
+    REPORT("UNIMPLEMENTED!\n");
+    exit(99);
+}
+void nycpp_col_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    REPORT("UNIMPLEMENTED!\n");
+    exit(99);
+}
+void nycpp_col_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
+    REPORT("UNIMPLEMENTED!\n");
+    exit(99);
 }

@@ -52,7 +52,7 @@ void Obj_free(UfoCore *ufo_system, Obj *ptr) {
 }
 
 int main(int argc, char *argv[]) {
-    UfoCore ufo_system = ufo_new_core("/tmp/ufos/", HIGH_WATER_MARK, LOW_WATER_MARK);
+    UfoCore ufo_system = ufo_new_core("/tmp/", HIGH_WATER_MARK, LOW_WATER_MARK);
         if (ufo_core_is_error(&ufo_system)) {
         exit(1);
     }

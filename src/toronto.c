@@ -7,6 +7,8 @@
 #include "bzip.h"
 #include "mmap.h"
 #include "postgres.h"
+#include "col.h"
+
 #include "toronto/target/toronto.h"
 
 #include "random.h"
@@ -182,6 +184,44 @@ void toronto_mmap_execution(Arguments *config, AnySystem system, AnyObject objec
             village_write(village, result.current, &value);
         } else {
             char value;
+            village_read(village, result.current, &value);
+            sum += value;
+        }
+    };
+    *oubliette = sum;
+}
+
+// Col
+void *toronto_col_creation(Arguments *config, AnySystem system) {
+    TorontoCore *toronto_system = (TorontoCore *) system;
+    int32_t **matrix = col_source_matrix_new(config->size, COL_COLUMNS_IN_EACH_ROW);
+    return (void *) col_toronto_new(toronto_system, matrix, COL_SELECTED_COLUMN, config->size, config->min_load);
+}
+void toronto_col_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    TorontoCore *toronto_system = (TorontoCore *) system;
+    Village *toronto_object = (Village *) object;
+
+    VillageParameters parameters;
+    village_params(toronto_object, &parameters);
+    ColumnSpec *spec = (ColumnSpec *) parameters.populate_data;
+    col_source_matrix_free(spec->source, spec->size);
+
+    col_toronto_free(toronto_system, toronto_object);   
+}
+void toronto_col_execution(Arguments *config, AnySystem system, AnyObject object, AnySequence sequence, sequence_t next, volatile int64_t *oubliette) {
+    Village *village = (Village *) object; 
+    int64_t sum = 0;
+    SequenceResult result;
+    while (true) {
+        result = next(config, sequence);     
+        if (result.end) {
+            break;
+        }        
+        if (result.write) {
+            int32_t value = (int32_t) random_int(1000);
+            village_write(village, result.current, &value);
+        } else {
+            int32_t value;
             village_read(village, result.current, &value);
             sum += value;
         }

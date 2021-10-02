@@ -7,6 +7,7 @@
 #include "bzip.h"
 #include "mmap.h"
 #include "postgres.h"
+#include "col.h"
 
 #include "logging.h"
 
@@ -77,4 +78,30 @@ void *ufo_mmap_creation(Arguments *config, AnySystem system) {
 void ufo_mmap_cleanup(Arguments *config, AnySystem system, AnyObject object) {
     UfoCore *ufo_system_ptr = (UfoCore *) system;
     MMap_ufo_free(ufo_system_ptr, object);
+}
+
+// Col
+void *ufo_col_creation(Arguments *config, AnySystem system) {
+    UfoCore *ufo_system_ptr = (UfoCore *) system;
+    int32_t **matrix = col_source_matrix_new(config->size, COL_COLUMNS_IN_EACH_ROW);
+    return (void *) col_ufo_new(ufo_system_ptr, matrix, COL_SELECTED_COLUMN, config->size, config->writes == 0, config->min_load);
+}
+void ufo_col_cleanup(Arguments *config, AnySystem system, AnyObject object) {
+    UfoCore *ufo_system = (UfoCore *) system;
+
+    UfoObj ufo_object = ufo_get_by_address(ufo_system, object);
+    if (ufo_is_error(&ufo_object)) {
+        fprintf(stderr, "Cannot free %p: not a UFO object.\n", object);
+        return;
+    }
+
+    UfoParameters parameters;
+    int result = ufo_get_params(ufo_system, &ufo_object, &parameters);
+    if (result < 0) {
+        REPORT("Unable to access UFO parameters, so cannot free source matrix\n");
+    }
+    ColumnSpec *spec = (ColumnSpec *) parameters.populate_data;
+    col_source_matrix_free(spec->source, spec->size);
+
+    col_ufo_free(ufo_system, object);   
 }

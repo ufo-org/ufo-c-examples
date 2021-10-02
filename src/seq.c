@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "logging.h"
 #include "seq.h"
 
 int32_t seq_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target_bytes) {
@@ -34,14 +35,18 @@ int64_t *seq_ufo_new(UfoCore *ufo_system, size_t from, size_t to, size_t by, boo
     return seq_ufo_from_Seq(ufo_system, data, read_only, min_load_count);
 }
 
-int64_t *seq_ufo_from_Seq(UfoCore *ufo_system, Seq data, bool read_only, size_t min_load_count) {
+int64_t *seq_ufo_from_Seq(UfoCore *ufo_system, Seq seq, bool read_only, size_t min_load_count) {
+
+    Seq *data = (Seq *) malloc(sizeof(Seq));
+    *data = seq;
+
     UfoParameters parameters;
     parameters.header_size = 0;
     parameters.element_size = strideOf(int64_t);
-    parameters.element_ct = data.length;
+    parameters.element_ct = data->length;
     parameters.min_load_ct = min_load_count;
     parameters.read_only = false;
-    parameters.populate_data = &data; // populate data is copied by UFO, so this should be fine.
+    parameters.populate_data = data; // populate data is copied by UFO, so this should be fine.
     parameters.populate_fn = seq_populate;
 
     UfoObj ufo_object = ufo_new_object(ufo_system, &parameters);
@@ -61,7 +66,12 @@ void seq_ufo_free(UfoCore *ufo_system, int64_t *ptr) {
         return;
     }
 
-    // No need to free parameters.
+    UfoParameters parameters;
+    int result = ufo_get_params(ufo_system, &ufo_object, &parameters);
+    if (result < 0) {
+        REPORT("Unable to access UFO parameters, so cannot free source matrix\n");
+    }
+    free(parameters.populate_data);
 
     ufo_free(ufo_object);
 }
@@ -107,13 +117,16 @@ Borough *seq_nyc_new(NycCore *system, size_t from, size_t to, size_t by, size_t 
     data.by = by;
     return seq_nyc_from_Seq(system, data, min_load_count);
 }
-Borough *seq_nyc_from_Seq(NycCore *system, Seq data, size_t min_load_count) {
+Borough *seq_nyc_from_Seq(NycCore *system, Seq seq, size_t min_load_count) {
+    Seq *data = (Seq *) malloc(sizeof(Seq));
+    *data = seq;
+
     BoroughParameters parameters;
     parameters.header_size = 0;
     parameters.element_size = strideOf(int64_t);
-    parameters.element_ct = data.length;
+    parameters.element_ct = data->length;
     parameters.min_load_ct = min_load_count;
-    parameters.populate_data = &data; // populate data is copied by UFO, so this should be fine.
+    parameters.populate_data = data; // populate data is copied by UFO, so this should be fine.
     parameters.populate_fn = seq_populate;
 
     Borough *object = (Borough *) malloc(sizeof(Borough));
@@ -126,6 +139,9 @@ Borough *seq_nyc_from_Seq(NycCore *system, Seq data, size_t min_load_count) {
     return object;
 }
 void seq_nyc_free(NycCore *system, Borough *object) {    
+    BoroughParameters parameters;
+    borough_params(object, &parameters);
+    free(parameters.populate_data);
     borough_free(*object);
     free(object);
 }
@@ -147,13 +163,16 @@ Village *seq_toronto_new(TorontoCore *system, size_t from, size_t to, size_t by,
     data.by = by;
     return seq_toronto_from_Seq(system, data, min_load_count);
 }
-Village *seq_toronto_from_Seq(TorontoCore *system, Seq data, size_t min_load_count) {
+Village *seq_toronto_from_Seq(TorontoCore *system, Seq seq, size_t min_load_count) {
+    Seq *data = (Seq *) malloc(sizeof(Seq));
+    *data = seq;
+
     VillageParameters parameters;
     parameters.header_size = 0;
     parameters.element_size = strideOf(int64_t);
-    parameters.element_ct = data.length;
+    parameters.element_ct = data->length;
     parameters.min_load_ct = min_load_count;
-    parameters.populate_data = &data; // populate data is copied by UFO, so this should be fine.
+    parameters.populate_data = data; // populate data is copied by UFO, so this should be fine.
     parameters.populate_fn = seq_populate;
 
     Village *object = (Village *) malloc(sizeof(Village));
@@ -165,7 +184,10 @@ Village *seq_toronto_from_Seq(TorontoCore *system, Seq data, size_t min_load_cou
 
     return object;
 }
-void seq_toronto_free(TorontoCore *system, Village *object) {    
+void seq_toronto_free(TorontoCore *system, Village *object) {  
+    VillageParameters parameters;
+    village_params(object, &parameters);
+    free(parameters.populate_data);  
     village_free(*object);
     free(object);
 }

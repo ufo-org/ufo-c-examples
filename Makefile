@@ -1,7 +1,7 @@
 # You can set UFO_DEBUG=1 or UFO_DEBUG=0 in the environment to compile with or
 # without debug symbols (this affects both the C and the Rust code).
 
-SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c src/seq.c src/random.c src/mmap.c src/ufo.c src/nyc.c src/normil.c src/toronto.c
+SOURCES_C = src/postgres.c src/bzip.c src/fib.c src/timing.c src/bench.c src/seq.c src/random.c src/mmap.c src/ufo.c src/nyc.c src/normil.c src/toronto.c src/col.c
 SOURCES_CPP = src/nycpp.cpp
 
 # -----------------------------------------------------------------------------
@@ -22,14 +22,15 @@ endif
 
 OUR_LIBS=$(UFO_C_PATH)/$(LIB_SUBDIR)/libufo_c.a $(NEW_YORK_PATH)/$(LIB_SUBDIR)/libnew_york_city.a  $(TORONTO_PATH)/$(LIB_SUBDIR)/libtoronto.a
 OUR_INCLUDES=-I$(UFO_C_PATH)/target/ -I$(NEW_YORK_PATH)/target/ -I$(TORONTO_PATH)/target/
-
 LIBS = -Wl,--no-as-needed -lpthread -lpq -lrt -ldl -lm -lbz2 -lstdc++ $(OUR_LIBS)
+COMMON_FLAGS = -fPIC -Wall -Werror $(OUR_INCLUDES) -I/usr/include/postgresql
+
 ifeq (${UFO_DEBUG}, 1)
-	CFLAGS = -DMAKE_SURE -Og -ggdb -fPIC -Wall -Werror -DNDEBUG $(OUR_INCLUDES) -I/usr/include/postgresql
-	CXXFLAGS =           -Og -ggdb -fPIC -Wall -Werror -DNDEBUG $(OUR_INCLUDES) -I/usr/include/postgresql
+	CFLAGS =   -Og -ggdb $(COMMON_FLAGS) -DMAKE_SURE -DNDEBUG
+	CXXFLAGS = -Og -ggdb $(COMMON_FLAGS)
 else
-	CFLAGS =             -O2       -fPIC -Wall -Werror          $(OUR_INCLUDES) -I/usr/include/postgresql
-	CXXFLAGS =           -O2       -fPIC -Wall -Werror          $(OUR_INCLUDES) -I/usr/include/postgresql
+	CFLAGS =   -O2 $(COMMON_FLAGS)
+	CXXFLAGS = -O2 $(COMMON_FLAGS)
 endif
 
 # TODO split CFLAGS for different wotsits
@@ -59,9 +60,6 @@ fib: libs
 
 seq: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o seq src/seq.o $(LFLAGS) $(LIBS) src/seq_example.c
-
-# mmap: libs
-# 	$(CC) $(CFLAGS) $(INCLUDES) -o mmap src/mmap.o $(LFLAGS) $(LIBS) src/mmap_example.c
 
 bench: libs
 	$(CC) $(CFLAGS) $(INCLUDES) -o bench $(OBJECTS) $(OBJECTS_CPP) $(LFLAGS) $(LIBS) 

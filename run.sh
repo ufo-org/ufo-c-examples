@@ -15,6 +15,23 @@ function with {
     $@ --${param}
 }  
 
+function with_each {
+    local param=$1
+    shift
+    local params=()
+    shift # drop "["
+    while [ $1 != "]" ]
+    do
+        params+="$1 "
+        shift
+    done
+    shift # drop "]"
+    for value in ${params[@]}
+    do
+        $@ --${param}=$value
+    done
+}  
+
 function iterate {
     local iterations=${1}
     shift

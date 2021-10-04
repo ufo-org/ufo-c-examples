@@ -78,6 +78,27 @@ SequenceResult ScanSequence_next(Arguments *config, AnySequence sequence) {
 }
 
 typedef struct { 
+    size_t current; 
+    size_t since_last_write; 
+} ReverseSequence;
+
+SequenceResult ReverseSequence_next(Arguments *config, AnySequence sequence) {
+    ReverseSequence *reverse_sequence = (ReverseSequence *) sequence;
+    SequenceResult result;
+    result.end = !(reverse_sequence->current > 0);
+    if (reverse_sequence->since_last_write == 1) {
+        result.write = true;
+        reverse_sequence->since_last_write = config->writes;
+    } else {
+        result.write = false;
+        reverse_sequence->since_last_write--;
+    }
+    reverse_sequence->current--;
+    result.current = reverse_sequence->current;
+    return result;
+}
+
+typedef struct { 
     size_t generated; 
     size_t length;
     size_t max_length;
@@ -263,9 +284,9 @@ int main(int argc, char *argv[]) {
     static char doc[] = "UFO performance benchmark utility.";
     static char args_doc[] = "";
     static struct argp_option options[] = {
-        {"benchmark",       'b', "BENCHMARK",      0,  "Benchmark (populate function) to run: seq, fib, mmap, psql, or bzip"},
-        {"implementation",  'i', "IMPL",           0,  "Implementation to run: ufo , ny, nyc++, normil"},
-        {"pattern",         'p', "FILE",           0,  "Read pattern: scan, random"},
+        {"benchmark",       'b', "BENCHMARK",      0,  "Benchmark (populate function) to run: seq, fib, mmap, col, psql, or bzip"},
+        {"implementation",  'i', "IMPL",           0,  "Implementation to run: ufo, nyc, toronto, normil, (and nyc++)"},
+        {"pattern",         'p', "FILE",           0,  "Read pattern: scan, random, reverse"},
         {"sample-size",     'n', "FILE",           0,  "How many elements to read from vector: zero for all"},
         {"writes",          'w', "N%%",            0,  "One write will occur once for every N%% reads, zero for read-only"},
         {"size",            's', "#B",             0,  "Vector size (applicable for fib and seq)"},        
@@ -306,7 +327,7 @@ int main(int argc, char *argv[]) {
         system_setup = &ufo_setup;
         system_teardown = &ufo_teardown;
     }
-    if (strcmp(config.implementation, "ny") == 0) {
+    if (strcmp(config.implementation, "nyc") == 0) {
         system_setup = &ny_setup;
         system_teardown = &ny_teardown;
     }
@@ -339,7 +360,7 @@ int main(int argc, char *argv[]) {
         execution = fib_execution;        
         max_length = fib_max_length;
     }
-    if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+    if ((strcmp(config.benchmark, "fib") == 0) && (strcmp(config.implementation, "nyc") == 0)) {
         object_creation = ny_fib_creation;
         object_cleanup = ny_fib_cleanup;
         execution = ny_fib_execution;        
@@ -369,7 +390,7 @@ int main(int argc, char *argv[]) {
         execution = mmap_execution;        
         max_length = mmap_max_length;
     }
-    if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+    if ((strcmp(config.benchmark, "mmap") == 0) && (strcmp(config.implementation, "nyc") == 0)) {
         object_creation = ny_mmap_creation;
         object_cleanup = ny_mmap_cleanup;
         execution = ny_mmap_execution;        
@@ -399,7 +420,7 @@ int main(int argc, char *argv[]) {
         execution = bzip_execution;        
         max_length = bzip_max_length;
     }
-    if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+    if ((strcmp(config.benchmark, "bzip") == 0) && (strcmp(config.implementation, "nyc") == 0)) {
         object_creation = ny_bzip_creation;
         object_cleanup = ny_bzip_cleanup;
         execution = ny_bzip_execution;        
@@ -429,7 +450,7 @@ int main(int argc, char *argv[]) {
         execution = seq_execution;
         max_length = seq_max_length;
     }
-    if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+    if ((strcmp(config.benchmark, "seq") == 0) && (strcmp(config.implementation, "nyc") == 0)) {
         object_creation = ny_seq_creation;
         object_cleanup = ny_seq_cleanup;
         execution = ny_seq_execution;        
@@ -459,7 +480,7 @@ int main(int argc, char *argv[]) {
         execution = psql_execution;
         max_length = psql_max_length;
     }
-    if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+    if ((strcmp(config.benchmark, "psql") == 0) && (strcmp(config.implementation, "nyc") == 0)) {
         object_creation = ny_psql_creation;
         object_cleanup = ny_psql_cleanup;
         execution = ny_psql_execution;        
@@ -489,7 +510,7 @@ int main(int argc, char *argv[]) {
         execution = col_execution;
         max_length = col_max_length;
     }
-    if ((strcmp(config.benchmark, "col") == 0) && (strcmp(config.implementation, "ny") == 0)) {
+    if ((strcmp(config.benchmark, "col") == 0) && (strcmp(config.implementation, "nyc") == 0)) {
         object_creation = ny_col_creation;
         object_cleanup = ny_col_cleanup;
         execution = ny_col_execution;        
@@ -546,6 +567,13 @@ int main(int argc, char *argv[]) {
         scan_sequence->since_last_write = config.writes;
         sequence = (AnySequence) scan_sequence;
         next = &ScanSequence_next;
+    }
+    if (strcmp(config.pattern, "reverse") == 0) {
+        ReverseSequence *reverse_sequence = malloc(sizeof(ReverseSequence));
+        reverse_sequence->current = sequence_length + 1;
+        reverse_sequence->since_last_write = config.writes;
+        sequence = (AnySequence) reverse_sequence;
+        next = &ReverseSequence_next;
     }
     if (strcmp(config.pattern, "random") == 0) {
         RandomSequence *random_sequence = malloc(sizeof(RandomSequence));

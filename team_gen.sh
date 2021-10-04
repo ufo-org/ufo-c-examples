@@ -50,8 +50,7 @@ function sql_generate_players {
         run=$(random_n 1000)
         separator=$( (( $i != (player_count - 1) )) && echo "," || echo ";" ) 
 
-        player="('${first_names[i]} $last_name', $tds, $run, $mvp)$separator"
-        echo ${player}        
+        echo "('${first_names[i]} $last_name', $tds, $run, $mvp)$separator"
     done
 }
 
@@ -61,14 +60,14 @@ batches=1
 function init_db {
     sudo -u postgres createuser -s "$user" && \
     createdb -U "$user" "$database"  && \
-    psql -U "$user" -d "$database" -c "$(sql_create_table)"
+    echo "$(sql_create_table)" | psql -U "$user" -d "$database"
 }
 
 function generate_players {
     for batch in $(seq 1 $batches)
     do
         echo "Batch $batch out of $batches"
-        psql -U "$user" -d "$database" -c "$(sql_generate_players $batch_size)"
+        echo "$(sql_generate_players $batch_size)" | psql -U "$user" -d "$database"
     done
 }
 

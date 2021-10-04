@@ -37,7 +37,7 @@ endif
 
 # -----------------------------------------------------------------------------
 
-.PHONY: all ufo-c ufo-c-clean clean new-york new-york-clean toronto toronto-clean
+.PHONY: all ufo-c ufo-c-clean clean new-york new-york-clean toronto toronto-clean prepare-database
 
 all: libs bench postgres bzip fib seq
 
@@ -84,6 +84,10 @@ toronto:
 
 toronto-clean:
 	cargo clean	--manifest-path=$(TORONTO_PATH)/Cargo.toml
+
+prepare-database:
+	./team_gen.sh init
+	./team_gen.sh --batches=10 --batch-size=10000 generate-data
 
 # update-dependencies:
 # 	cd src/ufo_c && git pull	

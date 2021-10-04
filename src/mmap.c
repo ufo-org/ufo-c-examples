@@ -111,8 +111,8 @@ MMap *MMap_normil_new(char *filename, char_map_t map_f) {
     }
 
     for (size_t i = 0; i < size; i++) {
-        printf("i=%lu\n", i);
-        printf("i=%lu, data[%lu]=%c f=%c\n", i, i, data[i], map_f(data[i]));
+        // printf("i=%lu\n", i);
+        // printf("i=%lu, data[%lu]=%c f=%c\n", i, i, data[i], map_f(data[i]));
         data[i] = map_f(data[i]);
     }
 

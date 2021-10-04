@@ -1,7 +1,23 @@
 #!/bin/bash
-implementations=( ufo nyc nyc++ normil toronto )
+implementations=( ufo nyc normil toronto )
 benchmarks=( seq fib psql bzip mmap )
 patterns=( scan random )
+
+function GB { 
+    echo  $(( $1 * 1024 * 1024 * 1024 )) 
+}
+function MB { 
+    echo  $(( $1 * 1024 * 1024 )) 
+}
+function KB { 
+    echo  $(( $1 * 1024 )) 
+}
+function B  { 
+    echo  $1 
+}
+function := {
+    $2 $1 
+}
 
 function run_benchmark {
     echo 'Executing: bench' $@ 1>&2

@@ -10,7 +10,7 @@ typedef struct {
 
 int32_t fib_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned char* target_bytes) {
     Fib *data = (Fib *) user_data;
-    printf("poppp %p\n", user_data);
+    // printf("poppp %p\n", user_data);
     uint64_t *target = (uint64_t *) target_bytes;
 
     target[0] = (start == 0) ? 1 : data->self[start-1] + data->self[start-2];

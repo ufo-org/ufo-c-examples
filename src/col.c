@@ -19,7 +19,7 @@ int32_t col_populate(void* user_data, uintptr_t start, uintptr_t end, unsigned c
 }
 
 int32_t *col_ufo_new(UfoCore *ufo_system, int32_t **source, size_t column, size_t size, bool read_only, size_t min_load_count) {
-    printf("col ufo new on %p\n", source);
+    // printf("col ufo new on %p\n", source);
 
     ColumnSpec *data = (ColumnSpec *) malloc(sizeof(ColumnSpec));
     data->column = column; 
